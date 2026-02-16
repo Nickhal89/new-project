@@ -1,2 +1,134 @@
-# new-project
-new project
+# Crossroads HR - Candidate Assessment Wizard (MVP v1)
+
+## 1) Project Folder Structure
+
+```txt
+app/
+  api/
+    session/start/route.ts
+    session/save/route.ts
+    session/submit/route.ts
+    upload-cv/route.ts
+  t/[job_token]/page.tsx
+  t2/[job_token]/page.tsx
+  globals.css
+  layout.tsx
+  page.tsx
+components/
+  candidate-wizard.tsx
+  candidate-wizard-waiter-v2.tsx
+  hr-ranking-table.tsx
+lib/
+  insights.ts
+  session.ts
+  supabase.ts
+  supabaseClient.ts
+types/
+  assessment.ts
+.env.example
+```
+
+## 2) Required Environment Variables
+
+See `.env.example`.
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_BASE_URL` (for server-rendered HR ranking page fetch)
+
+## 3) Supabase Client Setup
+
+`lib/supabase.ts` is server-only (with guard) and uses service-role key for API routes.
+`lib/supabaseClient.ts` is browser-safe and uses anon key for client use-cases.
+
+## 4) API Routes
+
+- `POST /api/session/start`
+- `POST /api/session/save`
+- `POST /api/session/submit`
+- `POST /api/upload-cv`
+
+## 5) Wizard UI
+
+Public route:
+
+- `/t/[job_token]` (legacy v1)
+- `/t2/[job_token]` (Waiter v2 pilot form - 18 items)
+
+Features:
+
+- email + consents
+- CV upload (optional)
+- multi-step questions
+- autosave after each step
+- resume previous session
+- submit as `submitted`
+
+## 6) Resume Logic
+
+Session and in-progress payload are persisted in `localStorage` with a key scoped by `job_token`.
+
+
+## 7) HR Ranking v2 Visibility
+
+Ranking rows now include score payload `version` and v2 `topCompetencies` when `score_json.version = waiter_v2`, so HR can see top strengths and role-specific why bullets.
+
+## 8) Test Commands
+
+Quick local checks:
+
+- `npm run test` → runs unit tests for `scoreWaiterV2` using Node's test runner.
+- `npm run smoke` → runs an end-to-end API smoke test against a running local app.
+
+### Smoke test env vars
+
+Set these before running `npm run smoke`:
+
+- `BASE_URL` (optional, defaults to `http://localhost:3000`)
+- `SMOKE_JOB_TOKEN` (required)
+- `SMOKE_JOB_ID` (required)
+- `SMOKE_HR_TOKEN` (required)
+- `SMOKE_EMAIL` (optional; defaults to `smoke+<timestamp>@example.com`)
+
+Example:
+
+```bash
+BASE_URL=http://localhost:3000 \
+SMOKE_JOB_TOKEN=demo123 \
+SMOKE_JOB_ID=<job-id> \
+SMOKE_HR_TOKEN=<hr-token> \
+npm run smoke
+```
+
+
+## 9) Admin Smoke Test UI
+
+You can run the full smoke check from a browser without terminal commands.
+
+1. Set these env vars in `.env.local`:
+   - `ADMIN_TOKEN`
+   - `SMOKE_JOB_TOKEN`
+   - `SMOKE_JOB_ID`
+   - `SMOKE_HR_TOKEN`
+   - (optional) `SMOKE_EMAIL`
+2. Start the app (`npm run dev`).
+3. Open:
+   - `http://localhost:3000/admin/health?token=YOUR_ADMIN_TOKEN`
+4. Click **Run Smoke Test**.
+
+Security note: the page reads `?token=...` once, then removes it from the URL and uses the `x-admin-token` header for API calls.
+
+A **PASS** means the critical flow succeeded end-to-end:
+`start session -> save waiter answers -> submit (v2 scoring) -> HR ranking returns waiter_v2 fields`.
+
+
+## 10) Admin Demo Panel (UI-only demo flow)
+
+Use this panel to run a full demo without terminal steps:
+
+- URL: `http://localhost:3000/admin/demo?token=YOUR_ADMIN_TOKEN`
+- Button 1: **Seed Demo Job** (creates demo company/job + HR token)
+- Button 2: **Run Full Demo Simulation** (simulates 10 waiter_v2 candidates and loads ranking)
+
+The panel shows job identifiers, run status, logs, and top-5 ranking with competencies/why bullets.
