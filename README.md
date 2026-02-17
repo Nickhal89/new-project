@@ -132,3 +132,15 @@ Use this panel to run a full demo without terminal steps:
 - Button 2: **Run Full Demo Simulation** (simulates 10 waiter_v2 candidates and loads ranking)
 
 The panel shows job identifiers, run status, logs, and top-5 ranking with competencies/why bullets.
+
+
+## 11) Windows One-Click Setup
+
+For non-technical setup on Windows:
+
+1. Open PowerShell in the project folder.
+2. Run: `powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1`
+3. Paste the requested Supabase/admin values when prompted.
+4. Use the printed URLs for `/admin/demo` and `/admin/health`.
+
+See `RUN_ME_FIRST_WINDOWS.md` for the ultra-short guide.
