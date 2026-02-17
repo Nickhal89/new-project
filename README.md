@@ -190,16 +190,11 @@ Presenter endpoint env:
 - Added `/roadmap` pitch page with Presenter Mode toggle.
 - Refined demo pages to use the shared UI kit: `/demo`, `/demo/health`, `/t2/demo`.
 
+## If you see npm 403 on Windows
 
-## Windows Guided Launcher
+- Open `NPM_403_WINDOWS_FIX.md` and follow the short checklist.
+- Run automated diagnosis:
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\diagnose-npm.ps1`
+- Or double-click `DIAGNOSE_NPM.bat`.
+- If `npm ping` fails, switch network (mobile hotspot), disable VPN/proxy, and retry.
 
-- Double-click `LAUNCH_DEMO.bat`.
-- If you see 403 Forbidden, run `scripts/diagnose-npm.ps1`.
-- In the menu, choose:
-  - `[2]` to create/fix `.env.local`
-  - `[3]` to install and run locally
-- Then open: `http://localhost:3000/demo`
-- The launcher also includes:
-  - guides opener `[1]`
-  - Vercel steps `[4]`
-  - local demo health opener `[5]`
