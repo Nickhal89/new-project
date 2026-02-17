@@ -194,6 +194,7 @@ Presenter endpoint env:
 ## Windows Guided Launcher
 
 - Double-click `LAUNCH_DEMO.bat`.
+- If you see 403 Forbidden, run `scripts/diagnose-npm.ps1`.
 - In the menu, choose:
   - `[2]` to create/fix `.env.local`
   - `[3]` to install and run locally
