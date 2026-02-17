@@ -189,3 +189,16 @@ Presenter endpoint env:
 - Added B2B-style HR dashboard UX upgrades at `/hr/demo` (KPI tiles + candidate drawer + copy summary).
 - Added `/roadmap` pitch page with Presenter Mode toggle.
 - Refined demo pages to use the shared UI kit: `/demo`, `/demo/health`, `/t2/demo`.
+
+
+## Windows Guided Launcher
+
+- Double-click `LAUNCH_DEMO.bat`.
+- In the menu, choose:
+  - `[2]` to create/fix `.env.local`
+  - `[3]` to install and run locally
+- Then open: `http://localhost:3000/demo`
+- The launcher also includes:
+  - guides opener `[1]`
+  - Vercel steps `[4]`
+  - local demo health opener `[5]`
