@@ -7,6 +7,11 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   try {
+    const url = new URL(request.url);
+    if (url.searchParams.get('dryRun') === 'true') {
+      return NextResponse.json({ ok: true, dryRun: true, top5: [], all: [] });
+    }
+
     const demo = await ensureDemoJob();
     const rows = await getDemoRankingRows(demo.jobId);
 

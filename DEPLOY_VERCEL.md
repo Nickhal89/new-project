@@ -10,6 +10,7 @@
    - `ADMIN_TOKEN`
    - `DEMO_MODE=true`
    - `DEMO_VIEW_KEY`
+   - `PRESENTER_TOKEN` (optional, for Presenter Mode hint panel)
 4. Deploy.
 
 ## 2) Verify (Smoke)
@@ -18,3 +19,5 @@
 - Enter `DEMO_VIEW_KEY`, run **Simulate Candidates**, confirm ranking fills.
 - Open `/t2/demo` and submit one candidate.
 - Return to `/hr/demo` and confirm ranking updates.
+
+- Open `/demo/health` and verify PASS on env checks and dry-runs.

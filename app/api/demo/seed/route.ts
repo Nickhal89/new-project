@@ -7,6 +7,11 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   try {
+    const body = (await request.json().catch(() => ({}))) as { dryRun?: boolean };
+    if (body.dryRun) {
+      return NextResponse.json({ ok: true, dryRun: true, message: 'Seed dry-run passed.' });
+    }
+
     const seeded = await ensureDemoJob();
     return NextResponse.json({ ok: true, ...seeded });
   } catch (error) {

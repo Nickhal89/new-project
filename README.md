@@ -153,6 +153,7 @@ After deploy:
 - `/demo`
 - `/hr/demo`
 - `/t2/demo`
+- `/demo/health`
 
 ## 13) Demo Mode (safe synthetic demo)
 
@@ -176,3 +177,7 @@ Required for hosted demo:
 - `ADMIN_TOKEN` (optional internal admin pages)
 
 See `DEPLOY_VERCEL.md` for the full deployment checklist.
+
+
+Presenter endpoint env:
+- `PRESENTER_TOKEN` (optional presenter-only token for `/api/demo/presenter-hint`)

@@ -1,8 +1,12 @@
 import Link from 'next/link';
+import DemoPresenterModeCard from '@/components/demo-presenter-mode-card';
+import { isDemoModeEnabled } from '@/lib/demoConfig';
 
 export default function DemoHubPage() {
+  const demoMode = isDemoModeEnabled();
+
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-6 py-16">
+    <main className="mx-auto min-h-screen max-w-4xl px-6 py-16">
       <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="text-3xl font-semibold text-slate-900">Demo Hub</h1>
         <p className="mt-3 text-slate-600">
@@ -18,6 +22,12 @@ export default function DemoHubPage() {
           </Link>
         </div>
       </section>
+
+      {demoMode ? (
+        <div className="mt-6">
+          <DemoPresenterModeCard />
+        </div>
+      ) : null}
     </main>
   );
 }
