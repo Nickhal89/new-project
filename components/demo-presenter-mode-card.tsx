@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 
 export default function DemoPresenterModeCard() {
   const [open, setOpen] = useState(false);
@@ -32,50 +35,37 @@ export default function DemoPresenterModeCard() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+    <Card>
+      <CardHeader className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Presenter Mode</h2>
           <p className="mt-1 text-sm text-slate-600">Γρήγορα links και ασφαλές hint passcode για live παρουσίαση.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
-        >
+        <Button type="button" variant="secondary" onClick={() => setOpen((v) => !v)}>
           {open ? 'Κλείσιμο' : 'Άνοιγμα'}
-        </button>
-      </div>
+        </Button>
+      </CardHeader>
 
       {open ? (
-        <div className="mt-4 space-y-3">
-          <input
+        <CardBody className="space-y-3">
+          <Input
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder="Presenter/Admin token"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2"
           />
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={loadHint} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
-              Load Passcode Hint
-            </button>
-            <button type="button" onClick={copyHint} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-              Copy Passcode Hint
-            </button>
-            <a href="/hr/demo" className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-              Open HR Demo
-            </a>
-            <a href="/t2/demo" className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-              Open Candidate Demo
-            </a>
+            <Button type="button" onClick={loadHint}>Load Passcode Hint</Button>
+            <Button type="button" variant="secondary" onClick={copyHint}>Copy Passcode Hint</Button>
+            <a href="/hr/demo"><Button type="button" variant="ghost">Open HR Demo</Button></a>
+            <a href="/t2/demo"><Button type="button" variant="ghost">Open Candidate Demo</Button></a>
           </div>
 
           {hint ? <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{hint}</p> : null}
           {error ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p> : null}
-        </div>
+        </CardBody>
       ) : null}
-    </section>
+    </Card>
   );
 }

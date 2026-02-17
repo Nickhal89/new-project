@@ -181,3 +181,11 @@ See `DEPLOY_VERCEL.md` for the full deployment checklist.
 
 Presenter endpoint env:
 - `PRESENTER_TOKEN` (optional presenter-only token for `/api/demo/presenter-hint`)
+
+
+## 15) Sprint 5.2 UI polish
+
+- Added reusable UI kit in `components/ui` (`Button`, `Card`, `Badge`, `Input`, `Modal`, `Tabs`).
+- Added B2B-style HR dashboard UX upgrades at `/hr/demo` (KPI tiles + candidate drawer + copy summary).
+- Added `/roadmap` pitch page with Presenter Mode toggle.
+- Refined demo pages to use the shared UI kit: `/demo`, `/demo/health`, `/t2/demo`.

@@ -1,6 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import Input from '@/components/ui/Input';
 
 type HealthPayload = {
   ok: boolean;
@@ -22,12 +26,7 @@ export default function DemoHealthPage() {
   const [rankingDryRun, setRankingDryRun] = useState<'idle' | 'pass' | 'fail'>('idle');
   const [error, setError] = useState('');
 
-  const authHeaders = key
-    ? {
-        'x-demo-key': key,
-        'x-admin-token': key
-      }
-    : {};
+  const authHeaders = key ? { 'x-demo-key': key, 'x-admin-token': key } : {};
 
   async function runHealth() {
     setStatus('running');
@@ -35,6 +34,7 @@ export default function DemoHealthPage() {
 
     const res = await fetch('/api/demo/health', { headers: authHeaders });
     const payload = (await res.json()) as HealthPayload;
+
     if (!res.ok) {
       setStatus('fail');
       setError(payload.error ?? 'Health check failed');
@@ -59,67 +59,67 @@ export default function DemoHealthPage() {
     setRankingDryRun(res.ok ? 'pass' : 'fail');
   }
 
-  const badge = {
-    idle: 'bg-slate-100 text-slate-700',
-    running: 'bg-amber-100 text-amber-800',
-    pass: 'bg-emerald-100 text-emerald-700',
-    fail: 'bg-rose-100 text-rose-700'
-  }[status];
+  const tone = status === 'pass' ? 'success' : status === 'running' ? 'warn' : status === 'fail' ? 'error' : 'neutral';
 
   return (
-    <main className="mx-auto min-h-screen max-w-4xl px-6 py-16">
-      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex items-center justify-between">
+    <main className="mx-auto max-w-4xl py-8">
+      <Card>
+        <CardHeader className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Demo Health</h1>
-          <span className={`rounded-full px-3 py-1 text-sm ${badge}`}>{status.toUpperCase()}</span>
-        </div>
+          <Badge tone={tone}>{status.toUpperCase()}</Badge>
+        </CardHeader>
+        <CardBody>
+          <p className="text-sm text-slate-600">Προστατευμένη σελίδα ελέγχου demo readiness.</p>
 
-        <p className="mt-3 text-sm text-slate-600">Προστατευμένη σελίδα ελέγχου demo readiness.</p>
+          <Input
+            type="password"
+            className="mt-4"
+            placeholder="Demo passcode ή admin token"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+          />
 
-        <input
-          type="password"
-          className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2"
-          placeholder="Demo passcode ή admin token"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-        />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button onClick={runHealth}>Run Health Check</Button>
+            <Button variant="secondary" onClick={runSeedDry}>Dry-run Seed</Button>
+            <Button variant="secondary" onClick={runRankingDry}>Dry-run Ranking</Button>
+          </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button onClick={runHealth} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
-            Run Health Check
-          </button>
-          <button onClick={runSeedDry} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-            Dry-run Seed
-          </button>
-          <button onClick={runRankingDry} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-            Dry-run Ranking
-          </button>
-        </div>
+          {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
 
-        {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+          {health?.checks ? (
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {Object.entries(health.checks).map(([k, v]) => (
+                <div key={k} className={`rounded-xl border p-3 text-sm ${v ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                  <p className="font-medium">{k}</p>
+                  <p>{v ? 'PASS' : 'FAIL'}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-        {health?.checks ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {Object.entries(health.checks).map(([k, v]) => (
-              <div key={k} className={`rounded-lg border p-3 text-sm ${v ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
-                <p className="font-medium">{k}</p>
-                <p>{v ? 'PASS' : 'FAIL'}</p>
-              </div>
-            ))}
+            <MiniResult title="/api/demo/seed dry-run" status={seedDryRun} />
+            <MiniResult title="/api/demo/ranking dry-run" status={rankingDryRun} />
           </div>
-        ) : null}
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className={`rounded-lg border p-3 text-sm ${seedDryRun === 'pass' ? 'border-emerald-200 bg-emerald-50' : seedDryRun === 'fail' ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
-            <p className="font-medium">/api/demo/seed dry-run</p>
-            <p>{seedDryRun.toUpperCase()}</p>
-          </div>
-          <div className={`rounded-lg border p-3 text-sm ${rankingDryRun === 'pass' ? 'border-emerald-200 bg-emerald-50' : rankingDryRun === 'fail' ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'}`}>
-            <p className="font-medium">/api/demo/ranking dry-run</p>
-            <p>{rankingDryRun.toUpperCase()}</p>
-          </div>
-        </div>
-      </section>
+        </CardBody>
+      </Card>
     </main>
+  );
+}
+
+function MiniResult({ title, status }: { title: string; status: 'idle' | 'pass' | 'fail' }) {
+  const cls =
+    status === 'pass'
+      ? 'border-emerald-200 bg-emerald-50'
+      : status === 'fail'
+        ? 'border-rose-200 bg-rose-50'
+        : 'border-slate-200 bg-slate-50';
+
+  return (
+    <div className={`rounded-xl border p-3 text-sm ${cls}`}>
+      <p className="font-medium">{title}</p>
+      <p>{status.toUpperCase()}</p>
+    </div>
   );
 }
