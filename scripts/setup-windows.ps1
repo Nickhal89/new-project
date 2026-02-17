@@ -6,7 +6,8 @@ Write-Host "========================================" -ForegroundColor Cyan
 $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
 if (-not $nodeCmd) {
   Write-Host "Node.js was not found." -ForegroundColor Red
-  Write-Host "Please install Node.js 18+ from https://nodejs.org and run this script again." -ForegroundColor Yellow
+  Write-Host "Install Node.js 18+ from: https://nodejs.org" -ForegroundColor Yellow
+  Write-Host "Then run START_CROSSROADS.bat again." -ForegroundColor Yellow
   exit 1
 }
 
@@ -20,7 +21,7 @@ if ($nodeVersionRaw -match '^v(\d+)') {
 if ($majorVersion -lt 18) {
   Write-Host "Detected Node.js version: $nodeVersionRaw" -ForegroundColor Red
   Write-Host "Crossroads HR needs Node.js 18 or newer." -ForegroundColor Yellow
-  Write-Host "Please update Node.js and run this script again." -ForegroundColor Yellow
+  Write-Host "Please update Node.js from https://nodejs.org and run again." -ForegroundColor Yellow
   exit 1
 }
 
@@ -57,20 +58,22 @@ ADMIN_TOKEN=$adminToken
   Write-Host ".env.local already exists. Skipping env creation." -ForegroundColor Yellow
 }
 
-# 5) Print final URLs
-$adminTokenPreview = "<YOUR_ADMIN_TOKEN>"
+# 5) Read ADMIN_TOKEN for URLs
+$ADMIN_TOKEN = "<YOUR_ADMIN_TOKEN>"
 if (Test-Path $envPath) {
   $tokenLine = Get-Content $envPath | Where-Object { $_ -like 'ADMIN_TOKEN=*' } | Select-Object -First 1
   if ($tokenLine) {
-    $adminTokenPreview = ($tokenLine -replace '^ADMIN_TOKEN=', '').Trim()
+    $ADMIN_TOKEN = ($tokenLine -replace '^ADMIN_TOKEN=', '').Trim()
   }
 }
 
-Write-Host "" 
-Write-Host "Setup complete. Starting development server..." -ForegroundColor Green
-Write-Host "Open: http://localhost:3000/admin/demo?token=$adminTokenPreview" -ForegroundColor Cyan
-Write-Host "Open: http://localhost:3000/admin/health?token=$adminTokenPreview" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "Setup complete. Starting development server..." -ForegroundColor Green
+Write-Host "Open: http://localhost:3000/admin/demo?token=$ADMIN_TOKEN" -ForegroundColor Cyan
+Write-Host "Open: http://localhost:3000/admin/health?token=$ADMIN_TOKEN" -ForegroundColor Cyan
+Write-Host ""
+
+Start-Process "http://localhost:3000/admin/demo?token=$ADMIN_TOKEN"
 
 # 6) Start app
 npm run dev
