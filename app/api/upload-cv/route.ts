@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { saveAnswers } from '@/lib/session';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { isDemoModeEnabled } from '@/lib/demoConfig';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_EXT = new Set(['pdf', 'doc', 'docx']);
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
 
     if (!sessionId || !(file instanceof File)) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    if (isDemoModeEnabled()) {
+      await saveAnswers(sessionId, { cv_file_path: `demo-disabled/${sessionId}` });
+      return NextResponse.json({ path: `demo-disabled/${sessionId}`, demoMode: true });
     }
 
     if (file.size > MAX_BYTES) {

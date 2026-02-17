@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import HrRankingTable from '@/components/hr-ranking-table';
 
 export default async function HrJobPage({
@@ -23,11 +24,14 @@ export default async function HrJobPage({
     );
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? '';
-  const res = await fetch(
-    `${baseUrl}/api/hr/job/${jobId}/ranking?token=${encodeURIComponent(token)}`,
-    { cache: 'no-store' }
-  );
+  const hdrs = await headers();
+  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? '';
+  const proto = hdrs.get('x-forwarded-proto') ?? 'http';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${proto}://${host}`;
+
+  const res = await fetch(`${baseUrl}/api/hr/job/${jobId}/ranking?token=${encodeURIComponent(token)}`, {
+    cache: 'no-store'
+  });
 
   if (res.status === 401) {
     return (

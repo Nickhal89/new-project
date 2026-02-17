@@ -6,6 +6,8 @@ import {
   getSessionAnswers,
   upsertConsents
 } from '@/lib/session';
+import { ensureDemoJob } from '@/lib/demoData';
+import { DEMO_JOB_TOKEN, isDemoModeEnabled } from '@/lib/demoConfig';
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +24,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
-    const job = await getJobByToken(jobToken);
+    let job = await getJobByToken(jobToken);
+    if (!job && isDemoModeEnabled() && jobToken === DEMO_JOB_TOKEN) {
+      const seeded = await ensureDemoJob();
+      job = await getJobByToken(seeded.jobToken);
+    }
+
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }

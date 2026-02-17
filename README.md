@@ -144,3 +144,35 @@ For non-technical setup on Windows:
 4. Use the printed URLs for `/admin/demo` and `/admin/health`.
 
 See `RUN_ME_FIRST_WINDOWS.md` for the ultra-short guide.
+
+
+## 12) Public Demo URLs
+
+After deploy:
+- `/`
+- `/demo`
+- `/hr/demo`
+- `/t2/demo`
+
+## 13) Demo Mode (safe synthetic demo)
+
+Set:
+- `DEMO_MODE=true`
+- `DEMO_VIEW_KEY=<demo_passcode>`
+
+Behavior in demo mode:
+- Demo endpoints (`/api/demo/*`) accept only `x-demo-key`.
+- Candidate simulation uses synthetic `example.com` emails.
+- CV upload is mocked/disabled and stores demo placeholder path.
+
+## 14) Vercel env vars
+
+Required for hosted demo:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DEMO_MODE`
+- `DEMO_VIEW_KEY`
+- `ADMIN_TOKEN` (optional internal admin pages)
+
+See `DEPLOY_VERCEL.md` for the full deployment checklist.
