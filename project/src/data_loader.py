@@ -1,15 +1,86 @@
 import csv
-import math
-import random
+from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from pathlib import Path
-from typing import Dict, List
+from io import StringIO
+from typing import Dict, List, Optional, Tuple
 from urllib.error import URLError
 from urllib.request import urlopen
 
-SYMBOLS = [
-    '^GSPC', 'VGK', 'EWJ', 'EEM', 'FXI', 'AGG', 'HYG', 'GLD', 'DBC', 'VNQ', 'BTC-USD', 'DX-Y.NYB'
+
+@dataclass
+class SeriesSpec:
+    key: str
+    kind: str  # price/spread/index
+    attempts: List[Tuple[str, str]]  # (source, symbol)
+    late_start_allowed: bool = False
+
+
+SPECS = [
+    SeriesSpec('US_EQ', 'price', [('stooq', '^spx'), ('yahoo', '^GSPC')]),
+    SeriesSpec('EU_EQ', 'price', [('stooq', 'vgk.us'), ('yahoo', 'VGK')]),
+    SeriesSpec('JP_EQ', 'price', [('stooq', 'ewj.us'), ('yahoo', 'EWJ')]),
+    SeriesSpec('EM_EQ', 'price', [('stooq', 'eem.us'), ('yahoo', 'EEM')]),
+    SeriesSpec('CN_EQ', 'price', [('stooq', 'fxi.us'), ('yahoo', 'FXI')]),
+    SeriesSpec('AGG_BOND', 'price', [('stooq', 'agg.us'), ('yahoo', 'AGG')]),
+    SeriesSpec('HY_PROXY', 'price', [('fred', 'BAMLH0A0HYM2'), ('stooq', 'hyg.us'), ('yahoo', 'HYG')]),
+    SeriesSpec('GOLD', 'price', [('stooq', 'gld.us'), ('yahoo', 'GLD')]),
+    SeriesSpec('COMMOD', 'price', [('stooq', 'dbc.us'), ('yahoo', 'DBC')]),
+    SeriesSpec('REIT', 'price', [('stooq', 'vnq.us'), ('yahoo', 'VNQ')]),
+    SeriesSpec('DXY', 'index', [('yahoo', 'DX-Y.NYB'), ('fred', 'DTWEXBGS')]),
+    SeriesSpec('VIX', 'index', [('yahoo', '^VIX'), ('fred', 'VIXCLS')]),
+    SeriesSpec('BTC', 'price', [('yahoo', 'BTC-USD')], late_start_allowed=True),
 ]
+
+
+def _download_text(url: str, timeout: int = 20) -> str:
+    with urlopen(url, timeout=timeout) as resp:
+        return resp.read().decode('utf-8', errors='ignore')
+
+
+def _fetch_stooq(symbol: str) -> Dict[date, float]:
+    url = f'https://stooq.com/q/d/l/?s={symbol}&i=d'
+    raw = _download_text(url)
+    out = {}
+    reader = csv.DictReader(StringIO(raw))
+    for r in reader:
+        if not r.get('Date') or not r.get('Close'):
+            continue
+        out[datetime.strptime(r['Date'], '%Y-%m-%d').date()] = float(r['Close'])
+    if not out:
+        raise ValueError('empty stooq payload')
+    return out
+
+
+def _fetch_yahoo(symbol: str) -> Dict[date, float]:
+    period1 = int(datetime(1990, 1, 1).timestamp())
+    period2 = int(datetime.utcnow().timestamp())
+    url = f'https://query1.finance.yahoo.com/v7/finance/download/{symbol}?period1={period1}&period2={period2}&interval=1d&events=history&includeAdjustedClose=true'
+    raw = _download_text(url)
+    out = {}
+    reader = csv.DictReader(StringIO(raw))
+    for r in reader:
+        if r.get('Close') in (None, '', 'null'):
+            continue
+        out[datetime.strptime(r['Date'], '%Y-%m-%d').date()] = float(r['Adj Close'] if r.get('Adj Close') not in (None, '', 'null') else r['Close'])
+    if not out:
+        raise ValueError('empty yahoo payload')
+    return out
+
+
+def _fetch_fred(series_id: str) -> Dict[date, float]:
+    url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
+    raw = _download_text(url)
+    out = {}
+    reader = csv.DictReader(StringIO(raw))
+    for r in reader:
+        val = r.get(series_id)
+        if val in (None, '', '.'):
+            continue
+        out[datetime.strptime(r['DATE'], '%Y-%m-%d').date()] = float(val)
+    if not out:
+        raise ValueError('empty fred payload')
+    return out
 
 
 def _fridays(start: date, end: date) -> List[date]:
@@ -23,74 +94,84 @@ def _fridays(start: date, end: date) -> List[date]:
     return out
 
 
-def _download_stooq(symbol: str) -> Dict[date, float]:
-    cleaned = symbol.replace('^', '').replace('-', '')
-    url = f'https://stooq.com/q/d/l/?s={cleaned}.us&i=w'
-    prices = {}
-    with urlopen(url, timeout=20) as resp:
-        lines = resp.read().decode('utf-8').strip().splitlines()
-    reader = csv.DictReader(lines)
-    for row in reader:
-        if row.get('Close') in (None, '', '0'):
+def _to_weekly_friday(daily: Dict[date, float], fridays: List[date]) -> List[Optional[float]]:
+    keys = sorted(daily)
+    out = []
+    j = 0
+    last = None
+    for f in fridays:
+        while j < len(keys) and keys[j] <= f:
+            last = daily[keys[j]]
+            j += 1
+        out.append(last)
+    return out
+
+
+def _ffill_small_gaps(values: List[Optional[float]], max_gap: int = 2) -> Tuple[List[Optional[float]], int]:
+    out = values[:]
+    filled = 0
+    i = 0
+    while i < len(out):
+        if out[i] is not None:
+            i += 1
             continue
-        dt = datetime.strptime(row['Date'], '%Y-%m-%d').date()
-        prices[dt] = float(row['Close'])
-    return prices
+        s = i
+        while i < len(out) and out[i] is None:
+            i += 1
+        gap = i - s
+        prev = out[s - 1] if s > 0 else None
+        if prev is not None and gap <= max_gap:
+            for k in range(s, i):
+                out[k] = prev
+                filled += 1
+    return out, filled
 
 
-def _synthetic_series(symbol: str, dates: List[date]) -> Dict[date, float]:
-    seed = abs(hash(symbol)) % (10**6)
-    rng = random.Random(seed)
-    base = 100.0 + (seed % 40)
-    series = {}
-    for i, d in enumerate(dates):
-        drift = 0.0006 + ((seed % 7) - 3) * 0.00005
-        vol = 0.015 + (seed % 10) * 0.001
-        cyc = 0.005 * math.sin(i / 26)
-        ret = drift + cyc + rng.gauss(0, vol)
-        base *= (1 + ret)
-        series[d] = round(base, 4)
-    return series
+def fetch_all_weekly(start='1995-01-01'):
+    start_d = datetime.strptime(start, '%Y-%m-%d').date()
+    fridays = _fridays(start_d, date.today())
 
+    panel = {'Date': [d.isoformat() for d in fridays]}
+    meta = {'sources': {}, 'attempts': defaultdict(list), 'ffill_count': {}, 'mappings': {}}
+    failures = {}
 
-def fetch_weekly_data(start='1995-01-01'):
-    s = datetime.strptime(start, '%Y-%m-%d').date()
-    e = date.today()
-    dates = _fridays(s, e)
+    for spec in SPECS:
+        series = None
+        for source, symbol in spec.attempts:
+            meta['attempts'][spec.key].append(f'{source}:{symbol}')
+            try:
+                if source == 'stooq':
+                    daily = _fetch_stooq(symbol)
+                elif source == 'yahoo':
+                    daily = _fetch_yahoo(symbol)
+                elif source == 'fred':
+                    daily = _fetch_fred(symbol)
+                else:
+                    raise ValueError('unknown source')
+                series = _to_weekly_friday(daily, fridays)
+                meta['sources'][spec.key] = f'{source}:{symbol}'
+                if spec.key == 'HY_PROXY' and source != 'fred':
+                    meta['mappings']['HY_PROXY'] = 'Using HY ETF proxy because HY OAS unavailable.'
+                break
+            except Exception as e:  # noqa: BLE001
+                failures.setdefault(spec.key, []).append(f'{source}:{symbol} -> {e}')
 
-    panel = {'Date': [d.isoformat() for d in dates]}
-    sources = {}
+        if series is None:
+            failures.setdefault(spec.key, []).append('all sources failed')
+            continue
 
-    for sym in SYMBOLS:
-        try:
-            downloaded = _download_stooq(sym)
-            sources[sym] = 'stooq'
-        except (URLError, TimeoutError, ValueError, OSError):
-            downloaded = _synthetic_series(sym, dates)
-            sources[sym] = 'synthetic_fallback'
+        series, nfill = _ffill_small_gaps(series, max_gap=2)
+        meta['ffill_count'][spec.key] = nfill
+        panel[spec.key] = series
 
-        values = []
-        last = None
-        for d in dates:
-            px = downloaded.get(d, last)
-            if px is None and downloaded:
-                prior = [k for k in downloaded if k <= d]
-                px = downloaded[max(prior)] if prior else None
-            if px is None:
-                px = values[-1] if values else 100.0
-            values.append(round(float(px), 4))
-            last = px
-        panel[sym] = values
+    # global proxy constructed if regions available
+    req = ['US_EQ', 'EU_EQ', 'JP_EQ', 'EM_EQ', 'CN_EQ']
+    if all(k in panel for k in req):
+        gl = []
+        for i in range(len(fridays)):
+            vals = [panel[k][i] for k in req if panel[k][i] is not None]
+            gl.append(round(sum(vals) / len(vals), 6) if vals else None)
+        panel['GLOBAL_EQ'] = gl
+        meta['sources']['GLOBAL_EQ'] = 'constructed:average(US,EU,JP,EM,CN)'
 
-    return panel, sources
-
-
-def save_csv(panel: dict, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    headers = list(panel.keys())
-    n = len(panel['Date'])
-    with path.open('w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(headers)
-        for i in range(n):
-            writer.writerow([panel[h][i] for h in headers])
+    return panel, meta, failures

@@ -1,11 +1,70 @@
-from typing import Dict
+from datetime import datetime
+
+ZONE_RISK = {'Strong Expansion': 1.0, 'Expansion': 0.85, 'Neutral': 0.65, 'Deterioration': 0.40, 'Crisis': 0.20}
+ZONE_VOL = {'Strong Expansion': 16, 'Expansion': 15, 'Neutral': 14, 'Deterioration': 12, 'Crisis': 10}
+BTC_CAP = {'Strong Expansion': 0.25, 'Expansion': 0.20, 'Neutral': 0.10, 'Deterioration': 0.05, 'Crisis': 0.0}
+
+BASE_RISK = {'US_EQ': 0.22, 'EU_EQ': 0.12, 'JP_EQ': 0.08, 'EM_EQ': 0.08, 'CN_EQ': 0.06, 'REIT': 0.08, 'COMMOD': 0.07, 'HY_PROXY': 0.09, 'BTC': 0.04}
+BASE_DEF = {'AGG_BOND': 0.6, 'GOLD': 0.3, 'DXY': 0.1}
 
 
-RISK_ON = {'^GSPC': 0.22, 'VGK': 0.1, 'EWJ': 0.08, 'EEM': 0.08, 'FXI': 0.06, 'VNQ': 0.1, 'DBC': 0.08, 'GLD': 0.08, 'AGG': 0.1, 'HYG': 0.07, 'BTC-USD': 0.03}
-NEUTRAL = {'^GSPC': 0.16, 'VGK': 0.08, 'EWJ': 0.07, 'EEM': 0.06, 'FXI': 0.05, 'VNQ': 0.08, 'DBC': 0.07, 'GLD': 0.12, 'AGG': 0.18, 'HYG': 0.1, 'BTC-USD': 0.03}
-RISK_OFF = {'^GSPC': 0.08, 'VGK': 0.04, 'EWJ': 0.04, 'EEM': 0.03, 'FXI': 0.02, 'VNQ': 0.05, 'DBC': 0.04, 'GLD': 0.2, 'AGG': 0.4, 'HYG': 0.08, 'BTC-USD': 0.02}
+def _norm(w):
+    s = sum(w.values())
+    return {k: v / s for k, v in w.items()} if s > 0 else w
 
 
-def target_weights(regime: str) -> Dict[str, float]:
-    mapping = {'RISK_ON': RISK_ON, 'NEUTRAL': NEUTRAL, 'RISK_OFF': RISK_OFF}
-    return mapping.get(regime, NEUTRAL)
+def _month(d):
+    return datetime.strptime(d, '%Y-%m-%d').strftime('%Y-%m')
+
+
+def determine_weights(dates, regimes, drawdowns):
+    weights = []
+    cur = {}
+    dd_throttle = False
+    prev_m = None
+    for i, d in enumerate(dates):
+        if prev_m == _month(d):
+            weights.append(cur)
+            continue
+        prev_m = _month(d)
+        z = regimes['Zone'][i]
+        rb = ZONE_RISK[z]
+        vc = ZONE_VOL[z]
+        btc_cap = BTC_CAP[z]
+
+        if regimes['VSI'][i] < 30 or regimes['CRI'][i] < 30:
+            btc_cap *= 0.5
+
+        if drawdowns[i] <= -0.15:
+            dd_throttle = True
+        elif drawdowns[i] > -0.08:
+            dd_throttle = False
+
+        if dd_throttle:
+            vc -= 2
+            btc_cap *= 0.7
+
+        risk_budget = rb
+        if abs(regimes['corr_avg'][i]) > 0.7 or regimes['corr_z'][i] > 1.5:
+            risk_budget *= 0.85
+
+        risk_w = {k: v * risk_budget for k, v in BASE_RISK.items()}
+        def_budget = min(0.60, 1 - risk_budget)
+        def_w = {k: v * def_budget for k, v in BASE_DEF.items()}
+        cash = max(0.0, min(0.30, 1 - (sum(risk_w.values()) + sum(def_w.values()))))
+
+        if 'BTC' in risk_w and risk_w['BTC'] > btc_cap:
+            overflow = risk_w['BTC'] - btc_cap
+            risk_w['BTC'] = btc_cap
+            risk_w['US_EQ'] += overflow
+
+        mix = {**risk_w, **def_w, 'CASH': cash, 'TARGET_VOL': vc / 100.0}
+        cap_keys = [k for k in mix if k not in ('CASH', 'TARGET_VOL')]
+        for k in cap_keys:
+            mix[k] = min(0.35, mix[k])
+        norm_keys = [k for k in mix if k != 'TARGET_VOL']
+        n = _norm({k: mix[k] for k in norm_keys})
+        n['TARGET_VOL'] = mix['TARGET_VOL']
+        cur = n
+        weights.append(cur)
+    return weights
