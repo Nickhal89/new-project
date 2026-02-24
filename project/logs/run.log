@@ -1,0 +1,21 @@
+2026-02-24 07:18:58,340 [INFO] Starting run at 2026-02-24T07:18:58.340122
+2026-02-24 07:18:58,340 [INFO] Attempting dependency installation...
+2026-02-24 07:18:58,340 [WARNING] install_deps.py not found; skipping dependency automation step.
+2026-02-24 07:18:58,472 [INFO] Saved weekly data to /workspace/new-project/project/data/weekly_data.csv
+2026-02-24 07:18:58,472 [INFO] Data sources: {'^GSPC': 'synthetic_fallback', 'VGK': 'synthetic_fallback', 'EWJ': 'synthetic_fallback', 'EEM': 'synthetic_fallback', 'FXI': 'synthetic_fallback', 'AGG': 'synthetic_fallback', 'HYG': 'synthetic_fallback', 'GLD': 'synthetic_fallback', 'DBC': 'synthetic_fallback', 'VNQ': 'synthetic_fallback', 'BTC-USD': 'synthetic_fallback', 'DX-Y.NYB': 'synthetic_fallback'}
+2026-02-24 07:18:58,643 [INFO] Run completed successfully.
+2026-02-24 07:19:11,214 [INFO] Starting run at 2026-02-24T07:19:11.214236
+2026-02-24 07:19:11,214 [INFO] Attempting dependency installation...
+2026-02-24 07:22:42,570 [INFO] Starting run at 2026-02-24T07:22:42.570340
+2026-02-24 07:22:42,570 [INFO] Attempting dependency installation...
+2026-02-24 07:25:59,612 [INFO] Dependency installer stdout: 
+2026-02-24 07:25:59,613 [WARNING] Dependency install encountered issues, continuing with stdlib fallback. stderr=
+2026-02-24 07:25:59,753 [INFO] Saved weekly data to /workspace/new-project/project/data/weekly_data.csv
+2026-02-24 07:25:59,754 [INFO] Data sources: {'^GSPC': 'synthetic_fallback', 'VGK': 'synthetic_fallback', 'EWJ': 'synthetic_fallback', 'EEM': 'synthetic_fallback', 'FXI': 'synthetic_fallback', 'AGG': 'synthetic_fallback', 'HYG': 'synthetic_fallback', 'GLD': 'synthetic_fallback', 'DBC': 'synthetic_fallback', 'VNQ': 'synthetic_fallback', 'BTC-USD': 'synthetic_fallback', 'DX-Y.NYB': 'synthetic_fallback'}
+2026-02-24 07:25:59,933 [INFO] Run completed successfully.
+2026-02-24 07:26:05,696 [INFO] Starting run at 2026-02-24T07:26:05.696417
+2026-02-24 07:26:05,696 [INFO] Attempting dependency installation...
+2026-02-24 07:26:25,712 [WARNING] Dependency installation timed out; continuing with stdlib fallback.
+2026-02-24 07:26:25,849 [INFO] Saved weekly data to /workspace/new-project/project/data/weekly_data.csv
+2026-02-24 07:26:25,849 [INFO] Data sources: {'^GSPC': 'synthetic_fallback', 'VGK': 'synthetic_fallback', 'EWJ': 'synthetic_fallback', 'EEM': 'synthetic_fallback', 'FXI': 'synthetic_fallback', 'AGG': 'synthetic_fallback', 'HYG': 'synthetic_fallback', 'GLD': 'synthetic_fallback', 'DBC': 'synthetic_fallback', 'VNQ': 'synthetic_fallback', 'BTC-USD': 'synthetic_fallback', 'DX-Y.NYB': 'synthetic_fallback'}
+2026-02-24 07:26:26,020 [INFO] Run completed successfully.
