@@ -20,7 +20,7 @@ def _mdd(curve):
     return m, dds
 
 
-def run_backtest(panel, weights, cost_per_turnover=0.001):
+def run_backtest(panel, weights, cost_per_turnover=0.001, label='A'):
     n = len(panel['Date'])
     curve = [1.0]
     weekly = [0.0]
@@ -30,9 +30,7 @@ def run_backtest(panel, weights, cost_per_turnover=0.001):
     assets = ['US_EQ', 'EU_EQ', 'JP_EQ', 'EM_EQ', 'CN_EQ', 'REIT', 'COMMOD', 'HY_PROXY', 'BTC', 'AGG_BOND', 'GOLD', 'DXY']
     for i in range(1, n):
         w = weights[i - 1] if i - 1 < len(weights) else {}
-        gross = 0.0
-        for a in assets:
-            gross += w.get(a, 0.0) * _ret(panel, a, i)
+        gross = sum(w.get(a, 0.0) * _ret(panel, a, i) for a in assets)
         t = 0.5 * sum(abs(w.get(k, 0.0) - prev.get(k, 0.0)) for k in set(w) | set(prev) if k != 'TARGET_VOL')
         net = gross - t * cost_per_turnover
         curve.append(curve[-1] * (1 + net))
@@ -49,6 +47,7 @@ def run_backtest(panel, weights, cost_per_turnover=0.001):
     maxdd, dds = _mdd(curve)
     calmar = cagr / abs(maxdd) if maxdd < 0 else 0.0
     es95 = mean(sorted(weekly)[:max(1, int(0.05 * len(weekly)))])
+
     rec = 0
     for i in range(len(dds)):
         if dds[i] == maxdd:
@@ -60,9 +59,7 @@ def run_backtest(panel, weights, cost_per_turnover=0.001):
 
     def slice_ret(start, end):
         idx = [i for i, d in enumerate(panel['Date']) if start <= d <= end]
-        if len(idx) < 2:
-            return 0.0
-        return curve[idx[-1]] / curve[idx[0]] - 1
+        return 0.0 if len(idx) < 2 else (curve[idx[-1]] / curve[idx[0]] - 1)
 
     stress = {
         '2000_2002': slice_ret('2000-01-01', '2002-12-31'),
@@ -72,14 +69,23 @@ def run_backtest(panel, weights, cost_per_turnover=0.001):
     }
 
     return {
+        'label': label,
         'equity_curve': curve,
         'weekly_returns': weekly,
         'turnover': turnover,
         'metrics': {
             'CAGR': cagr, 'Vol': vol, 'Sharpe': sharpe, 'Sortino': sortino,
-            'MaxDD': maxdd, 'Calmar': calmar, 'TurnoverAvg': mean(turnover),
-            'ES95': es95, 'RecoveryWeeks': rec,
+            'MaxDD': maxdd, 'Calmar': calmar, 'TurnoverAvg': mean(turnover), 'ES95': es95, 'RecoveryWeeks': rec,
         },
         'stress_slices': stress,
         'drawdowns': dds,
     }
+
+
+def ab_consistency_check(res_a, res_b):
+    errs = []
+    if len(res_a['equity_curve']) != len(res_b['equity_curve']):
+        errs.append('A/B curve length mismatch')
+    if len(res_a['weekly_returns']) != len(res_b['weekly_returns']):
+        errs.append('A/B weekly return length mismatch')
+    return (len(errs) == 0), errs

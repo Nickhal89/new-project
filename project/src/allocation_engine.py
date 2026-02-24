@@ -1,4 +1,7 @@
 from datetime import datetime
+from typing import Optional
+
+from .risk_engine import overlay_scale
 
 ZONE_RISK = {'Strong Expansion': 1.0, 'Expansion': 0.85, 'Neutral': 0.65, 'Deterioration': 0.40, 'Crisis': 0.20}
 ZONE_VOL = {'Strong Expansion': 16, 'Expansion': 15, 'Neutral': 14, 'Deterioration': 12, 'Crisis': 10}
@@ -17,7 +20,7 @@ def _month(d):
     return datetime.strptime(d, '%Y-%m-%d').strftime('%Y-%m')
 
 
-def determine_weights(dates, regimes, drawdowns):
+def determine_weights(dates, regimes, drawdowns, forecast_vol: Optional[list] = None):
     weights = []
     cur = {}
     dd_throttle = False
@@ -27,6 +30,7 @@ def determine_weights(dates, regimes, drawdowns):
             weights.append(cur)
             continue
         prev_m = _month(d)
+
         z = regimes['Zone'][i]
         rb = ZONE_RISK[z]
         vc = ZONE_VOL[z]
@@ -39,29 +43,32 @@ def determine_weights(dates, regimes, drawdowns):
             dd_throttle = True
         elif drawdowns[i] > -0.08:
             dd_throttle = False
-
         if dd_throttle:
             vc -= 2
             btc_cap *= 0.7
 
-        risk_budget = rb
         if abs(regimes['corr_avg'][i]) > 0.7 or regimes['corr_z'][i] > 1.5:
-            risk_budget *= 0.85
+            rb *= 0.85
 
-        risk_w = {k: v * risk_budget for k, v in BASE_RISK.items()}
-        def_budget = min(0.60, 1 - risk_budget)
+        # HAR overlay: scale risk budget via cash sleeve method
+        if forecast_vol is not None:
+            fvol = forecast_vol[i - 1] if i > 0 else None  # t-1 signal for week t
+            rb *= overlay_scale(vc / 100.0, fvol)
+
+        risk_w = {k: v * rb for k, v in BASE_RISK.items()}
+        def_budget = min(0.60, 1 - rb)
         def_w = {k: v * def_budget for k, v in BASE_DEF.items()}
         cash = max(0.0, min(0.30, 1 - (sum(risk_w.values()) + sum(def_w.values()))))
 
-        if 'BTC' in risk_w and risk_w['BTC'] > btc_cap:
+        if risk_w.get('BTC', 0.0) > btc_cap:
             overflow = risk_w['BTC'] - btc_cap
             risk_w['BTC'] = btc_cap
             risk_w['US_EQ'] += overflow
 
         mix = {**risk_w, **def_w, 'CASH': cash, 'TARGET_VOL': vc / 100.0}
-        cap_keys = [k for k in mix if k not in ('CASH', 'TARGET_VOL')]
-        for k in cap_keys:
+        for k in [k for k in mix if k not in ('CASH', 'TARGET_VOL')]:
             mix[k] = min(0.35, mix[k])
+
         norm_keys = [k for k in mix if k != 'TARGET_VOL']
         n = _norm({k: mix[k] for k in norm_keys})
         n['TARGET_VOL'] = mix['TARGET_VOL']
