@@ -2,9 +2,37 @@ import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+const siteName = 'Crossroads HR';
+const siteDescription =
+  'Crossroads HR: Explainable hiring signals για εποχικούς ρόλους HORECA με γρήγορο shortlist και διαφανές ranking.';
+
 export const metadata: Metadata = {
-  title: 'Crossroads HR',
-  description: 'Candidate Assessment Wizard'
+  title: {
+    default: siteName,
+    template: `%s | ${siteName}`
+  },
+  description: siteDescription,
+  applicationName: siteName,
+  metadataBase: new URL('https://crossroads-hr-demo.vercel.app'),
+  openGraph: {
+    title: siteName,
+    description: siteDescription,
+    type: 'website',
+    url: '/',
+    siteName,
+    images: ['/og-placeholder.svg']
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: siteName,
+    description: siteDescription,
+    images: ['/og-placeholder.svg']
+  },
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg'
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
             <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4">
               <Link href="/" className="text-sm font-semibold tracking-wide text-slate-900">
-                Crossroads HR
+                {siteName}
               </Link>
               <nav className="flex items-center gap-1 text-sm">
                 <TopLink href="/demo" label="Demo" />

@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import TrustStrip from '@/components/trust-strip';
 
 export default function CandidateDemoLandingPage() {
   return (
-    <main className="mx-auto max-w-3xl py-8">
+    <main className="mx-auto max-w-3xl space-y-4 py-8">
+      <TrustStrip compact />
+
       <Card>
         <CardHeader>
           <h1 className="text-3xl font-semibold text-slate-900">Demo Τεστ Υποψηφίου</h1>

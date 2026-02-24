@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import TrustStrip from '@/components/trust-strip';
 
 type RankRow = {
   sessionId: string;
@@ -188,6 +189,8 @@ export default function HrDemoPage() {
   if (!unlocked) {
     return (
       <main className="mx-auto max-w-xl space-y-4 py-8">
+        <TrustStrip compact />
+
         <Card>
           <CardHeader>
             <h1 className="text-2xl font-semibold">HR Demo Access</h1>
@@ -212,6 +215,8 @@ export default function HrDemoPage() {
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 py-8">
+      <TrustStrip compact />
+
       <Card>
         <CardHeader className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold">HR Demo Dashboard</h1>
