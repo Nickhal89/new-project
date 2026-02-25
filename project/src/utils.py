@@ -1,4 +1,5 @@
 import json
+import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -42,3 +43,11 @@ def write_csv(path: Path, headers, rows):
         f.write(','.join(headers) + '\n')
         for r in rows:
             f.write(','.join('' if v is None else str(v) for v in r) + '\n')
+
+
+def file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            h.update(chunk)
+    return h.hexdigest()
