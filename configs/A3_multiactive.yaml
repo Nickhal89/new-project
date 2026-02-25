@@ -1,0 +1,53 @@
+step: A3.1
+source_weekly_data_path: amac_as_v1_outputs/weekly_data.csv
+tx_cost_bps: 10
+rebalance_freq: monthly
+momentum_enabled: true
+variants:
+  - name: A
+    mode: baseline
+strategic_weights:
+  US_EQ: 0.22
+  EU_EQ: 0.15
+  JP_EQ: 0.10
+  EM_EQ: 0.10
+  CN_EQ: 0.08
+  BONDS: 0.20
+  GOLD: 0.05
+  COMMS: 0.05
+  REIT: 0.03
+  BTC: 0.02
+regime_risk_budget:
+  StrongExpansion: 1.00
+  Expansion: 0.85
+  Neutral: 0.65
+  Deterioration: 0.45
+  Crisis: 0.30
+regime_vol_target:
+  StrongExpansion: 0.16
+  Expansion: 0.15
+  Neutral: 0.14
+  Deterioration: 0.13
+  Crisis: 0.12
+overlay_params:
+  har_enabled: false
+  corr_shock_enabled: false
+  tail_risk_enabled: false
+  har:
+    enabled: false
+    rolling_weeks: 260
+    min_fit: 120
+    refit_every_weeks: 4
+    clip_min: 0.50
+    clip_max: 1.25
+  corr_shock:
+    enabled: false
+    corr_z_threshold: 1.5
+    scale: 0.85
+  tail_safety:
+    enabled: false
+    es95_threshold: -0.035
+    scale: 0.80
+sanity_thresholds:
+  us_eq_annualized_vol_min: 0.08
+  us_eq_maxdd_max: -0.15

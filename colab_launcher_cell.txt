@@ -1,0 +1,5 @@
+!git clone https://github.com/<YOUR_ORG>/<YOUR_REPO>.git
+%cd <YOUR_REPO>
+!python -m pip install --upgrade pip
+!python -m pip install -r requirements.txt
+!python run_pipeline.py --config configs/A3_multiactive.yaml
