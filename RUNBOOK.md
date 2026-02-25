@@ -1,26 +1,23 @@
 # RUNBOOK
 
-## Workflow (Codex + Colab + User)
-1. **Codex (code)**: edits code/configs and commits.
-2. **Colab (execution)**: runs `python run_pipeline.py --config configs/<STEP>.yaml`.
-3. **User (copy/paste only)**: copies the 5-line summary from Colab output back into chat.
+## Collaboration contract
+1. Codex edits code + configs and commits.
+2. Colab executes: `python run_pipeline.py --config <config-file>`.
+3. User only copy/pastes the printed 5-line summary.
 
 ## Steps
-- **A1**: HAR A/B (`configs/A1.yaml`)
-- **A2**: HAR + CorrShock + TailRisk A/B/C (`configs/A2.yaml`)
-- **A3+**: add new config file, keep same manifest + summary contract.
+- A2 overlays: `configs/A2_overlays.yaml`
+- A3 multi-asset: `configs/A3_multiactive.yaml`
 
-## Required outputs per run
-Under `runs/<RUN_ID>/`:
-- `manifest.json`
-- `artifacts/metrics_<VARIANT>.json`
-- `artifacts/equity_curve_<VARIANT>.csv`
-- `artifacts/returns_<VARIANT>.csv`
-- `artifacts/summary_5_lines.txt`
+## Hard rules
+- Real data only.
+- Fail hard if prerequisites are missing.
+- Every run writes `runs/<RUN_ID>/manifest.json`.
+- Every run prints the standard 5-line summary.
 
-## Required 5-line summary format
-1. `RUN_ID: <run_id> | STATUS: PASS|FAIL`
-2. `CONFIG: <config_path> | CONFIG_HASH: <sha256_12>`
-3. `DATA: runs/<source_run_id>/weekly_data.csv | DATA_HASH: <sha256_12>`
-4. `VARIANTS: A=<cagr>, B=<cagr>, C=<cagr or N/A>`
-5. `ARTIFACTS: <artifact_count> files | COMMIT: <short_sha>`
+## Standard 5-line output
+1. `RUN_ID: <...>`
+2. `COMMIT: <git hash or NA>`
+3. `DATA_HASH: <sha256>`
+4. `STATUS: PASS/FAIL`
+5. `TOPLINE: Variant=<best>, CAGR=..., Sharpe=..., MaxDD=..., Vol=..., ES95=..., Turnover=...`

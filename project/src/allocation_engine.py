@@ -1,77 +1,91 @@
 from datetime import datetime
-from typing import Optional
 
 from .risk_engine import overlay_scale
 
 ZONE_RISK = {'Strong Expansion': 1.0, 'Expansion': 0.85, 'Neutral': 0.65, 'Deterioration': 0.40, 'Crisis': 0.20}
-ZONE_VOL = {'Strong Expansion': 16, 'Expansion': 15, 'Neutral': 14, 'Deterioration': 12, 'Crisis': 10}
-BTC_CAP = {'Strong Expansion': 0.25, 'Expansion': 0.20, 'Neutral': 0.10, 'Deterioration': 0.05, 'Crisis': 0.0}
+ZONE_VOL = {'Strong Expansion': 0.16, 'Expansion': 0.15, 'Neutral': 0.14, 'Deterioration': 0.12, 'Crisis': 0.10}
 
-BASE_RISK = {'US_EQ': 0.22, 'EU_EQ': 0.12, 'JP_EQ': 0.08, 'EM_EQ': 0.08, 'CN_EQ': 0.06, 'REIT': 0.08, 'COMMOD': 0.07, 'HY_PROXY': 0.09, 'BTC': 0.04}
-BASE_DEF = {'AGG_BOND': 0.6, 'GOLD': 0.3, 'DXY': 0.1}
-
-
-def _norm(w):
-    s = sum(w.values())
-    return {k: v / s for k, v in w.items()} if s > 0 else w
+STRATEGIC = {
+    'US_EQ': 0.22, 'EU_EQ': 0.10, 'JP_EQ': 0.08, 'EM_EQ': 0.08, 'CN_EQ': 0.05,
+    'BONDS': 0.18, 'HY': 0.07, 'GOLD': 0.08, 'COMMS': 0.06, 'REIT': 0.06, 'BTC': 0.02,
+}
+ALIASES = {'AGG_BOND': 'BONDS', 'HY_PROXY': 'HY', 'COMMOD': 'COMMS'}
 
 
 def _month(d):
     return datetime.strptime(d, '%Y-%m-%d').strftime('%Y-%m')
 
 
-def determine_weights(dates, regimes, drawdowns, forecast_vol: Optional[list] = None):
+def _norm(d):
+    s = sum(d.values())
+    return {k: v / s for k, v in d.items()} if s > 0 else d
+
+
+def _tail_es95(returns, i, w=26):
+    s = returns[max(0, i - w + 1): i + 1]
+    if not s:
+        return 0.0
+    q = sorted(s)[:max(1, int(0.05 * len(s)))]
+    return sum(q) / len(q)
+
+
+def determine_weights(dates, panel, regimes, drawdowns, weekly_returns_proxy, forecast_vol=None, variant_mode='baseline', overlay_params=None, rebalance_freq='monthly'):
+    overlay_params = overlay_params or {}
+    available = [k for k in panel.keys() if k != 'Date']
+
+    # canonical universe by available columns
+    universe = []
+    for k in available:
+        u = ALIASES.get(k, k)
+        if u in STRATEGIC and u not in universe:
+            universe.append(u)
+
+    base = _norm({u: STRATEGIC[u] for u in universe})
     weights = []
-    cur = {}
-    dd_throttle = False
+    cur = {'CASH': 1.0}
     prev_m = None
+
     for i, d in enumerate(dates):
-        if prev_m == _month(d):
+        do_rebal = rebalance_freq == 'weekly' or prev_m != _month(d)
+        if not do_rebal:
             weights.append(cur)
             continue
         prev_m = _month(d)
 
-        z = regimes['Zone'][i]
-        rb = ZONE_RISK[z]
-        vc = ZONE_VOL[z]
-        btc_cap = BTC_CAP[z]
+        zone = regimes['Zone'][i]
+        risk_budget = ZONE_RISK.get(zone, 0.65)
+        target_vol = ZONE_VOL.get(zone, 0.14)
 
-        if regimes['VSI'][i] < 30 or regimes['CRI'][i] < 30:
-            btc_cap *= 0.5
+        # overlay: HAR vol target scaling (t-1 signal on week t)
+        if variant_mode in ('har', 'har_corr_tail') and forecast_vol is not None:
+            f = forecast_vol[i - 1] if i > 0 else None
+            clip_min = overlay_params.get('har', {}).get('clip_min', 0.50)
+            clip_max = overlay_params.get('har', {}).get('clip_max', 1.25)
+            scale = overlay_scale(target_vol, f)
+            scale = max(clip_min, min(clip_max, scale))
+            risk_budget *= scale
+
+        # corr governor
+        if variant_mode == 'har_corr_tail' and overlay_params.get('corr_shock', {}).get('enabled'):
+            if regimes['corr_z'][i] > overlay_params['corr_shock']['corr_z_threshold']:
+                risk_budget *= overlay_params['corr_shock']['scale']
+
+        # tail risk throttle
+        if variant_mode == 'har_corr_tail' and overlay_params.get('tail_safety', {}).get('enabled'):
+            es = _tail_es95(weekly_returns_proxy, max(0, i - 1), 26)
+            if es < overlay_params['tail_safety']['es95_threshold']:
+                risk_budget *= overlay_params['tail_safety']['scale']
 
         if drawdowns[i] <= -0.15:
-            dd_throttle = True
-        elif drawdowns[i] > -0.08:
-            dd_throttle = False
-        if dd_throttle:
-            vc -= 2
-            btc_cap *= 0.7
+            risk_budget *= 0.85
 
-        if abs(regimes['corr_avg'][i]) > 0.7 or regimes['corr_z'][i] > 1.5:
-            rb *= 0.85
+        risk_budget = max(0.15, min(1.0, risk_budget))
 
-        # HAR overlay: scale risk budget via cash sleeve method
-        if forecast_vol is not None:
-            fvol = forecast_vol[i - 1] if i > 0 else None  # t-1 signal for week t
-            rb *= overlay_scale(vc / 100.0, fvol)
-
-        risk_w = {k: v * rb for k, v in BASE_RISK.items()}
-        def_budget = min(0.60, 1 - rb)
-        def_w = {k: v * def_budget for k, v in BASE_DEF.items()}
-        cash = max(0.0, min(0.30, 1 - (sum(risk_w.values()) + sum(def_w.values()))))
-
-        if risk_w.get('BTC', 0.0) > btc_cap:
-            overflow = risk_w['BTC'] - btc_cap
-            risk_w['BTC'] = btc_cap
-            risk_w['US_EQ'] += overflow
-
-        mix = {**risk_w, **def_w, 'CASH': cash, 'TARGET_VOL': vc / 100.0}
-        for k in [k for k in mix if k not in ('CASH', 'TARGET_VOL')]:
-            mix[k] = min(0.35, mix[k])
-
-        norm_keys = [k for k in mix if k != 'TARGET_VOL']
-        n = _norm({k: mix[k] for k in norm_keys})
-        n['TARGET_VOL'] = mix['TARGET_VOL']
-        cur = n
+        w = {u: base.get(u, 0.0) * risk_budget for u in universe}
+        for u in list(w):
+            w[u] = min(0.35, w[u])
+        used = sum(w.values())
+        w['CASH'] = max(0.0, 1 - used)
+        cur = w
         weights.append(cur)
     return weights

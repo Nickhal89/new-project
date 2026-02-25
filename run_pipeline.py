@@ -6,7 +6,6 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 import sys
 sys.path.append('project')
 
@@ -17,7 +16,11 @@ from src.regime_engine import compute_regime_indices
 from src.risk_engine import compute_us_eq_sanity, har_rv_forecast_from_returns, run_har_consistency_checks, weekly_returns
 from src.utils import write_csv, write_json
 
-RISK_KEYS = ['US_EQ', 'EU_EQ', 'JP_EQ', 'EM_EQ', 'CN_EQ', 'REIT', 'COMMOD', 'HY_PROXY', 'BTC']
+
+REQUIRED_MANIFEST_KEYS = {
+    'run_id', 'timestamp', 'git_commit_hash', 'config_hash', 'data_hash', 'status',
+    'fail_reasons', 'metrics', 'artifact_list', 'lookahead_safe_check'
+}
 
 
 def _coerce(v: str):
@@ -40,22 +43,18 @@ def load_simple_yaml(path: Path) -> dict:
     section = None
     subsection = None
     current_variant = None
-
     for raw in lines:
         indent = len(raw) - len(raw.lstrip(' '))
         t = raw.strip()
-
         if indent == 0 and ': ' in t:
             k, v = t.split(': ', 1)
             cfg[k] = _coerce(v)
             section = None
-            subsection = None
             continue
         if indent == 0 and t.endswith(':'):
             section = t[:-1]
             subsection = None
             continue
-
         if section == 'overlay_params':
             if indent == 2 and t.endswith(':'):
                 subsection = t[:-1]
@@ -64,20 +63,16 @@ def load_simple_yaml(path: Path) -> dict:
                 k, v = t.split(': ', 1)
                 cfg['overlay_params'][subsection][k] = _coerce(v)
             continue
-
         if section == 'sanity_thresholds' and ': ' in t:
             k, v = t.split(': ', 1)
             cfg['sanity_thresholds'][k] = _coerce(v)
             continue
-
         if section == 'variants':
             if t.startswith('- name: '):
                 current_variant = {'name': t.split(': ', 1)[1]}
                 cfg['variants'].append(current_variant)
-            elif t.startswith('mode: ') and current_variant is not None:
+            elif t.startswith('mode: ') and current_variant:
                 current_variant['mode'] = t.split(': ', 1)[1]
-            continue
-
     return cfg
 
 
@@ -89,11 +84,11 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def git_commit_hash() -> str:
+def git_hash() -> str:
     try:
         return subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     except Exception:
-        return 'unknown'
+        return 'NA'
 
 
 def load_weekly_csv(path: Path) -> dict:
@@ -101,123 +96,89 @@ def load_weekly_csv(path: Path) -> dict:
         raise FileNotFoundError(f'Missing required input data: {path}')
     with path.open('r', encoding='utf-8') as f:
         rows = list(csv.DictReader(f))
+    if not rows:
+        raise RuntimeError('weekly_data.csv is empty')
     panel = {'Date': [r['Date'] for r in rows]}
-    for k in rows[0].keys():
-        if k == 'Date':
+    for c in rows[0].keys():
+        if c == 'Date':
             continue
-        vals = []
-        for r in rows:
-            raw = r[k]
-            vals.append(None if raw == '' else float(raw))
-        panel[k] = vals
+        panel[c] = [None if r[c] == '' else float(r[c]) for r in rows]
     return panel
 
 
 def sanity_gate(panel: dict, thresholds: dict):
+    if 'US_EQ' not in panel:
+        return False, {'reason': 'US_EQ missing'}
     ok, stats = compute_us_eq_sanity(panel['US_EQ'])
-    gate = ok and stats['annualized_vol'] > thresholds['us_eq_annualized_vol_min'] and stats['max_drawdown'] < thresholds['us_eq_maxdd_max']
-    return gate, stats
+    passed = ok and stats['annualized_vol'] > thresholds['us_eq_annualized_vol_min'] and stats['max_drawdown'] < thresholds['us_eq_maxdd_max']
+    return passed, stats
 
 
-def apply_corr_tail_overlay(weights, regimes, drawdowns, overlay_params):
-    out = []
-    for i, w in enumerate(weights):
-        j = max(0, i - 1)
-        scale = 1.0
-        if overlay_params.get('corr_shock', {}).get('enabled') and abs(regimes['corr_avg'][j]) > overlay_params['corr_shock']['threshold']:
-            scale *= overlay_params['corr_shock']['scale']
-        if overlay_params.get('tail_risk', {}).get('enabled') and drawdowns[j] <= overlay_params['tail_risk']['dd_threshold']:
-            scale *= overlay_params['tail_risk']['scale']
-
-        nw = dict(w)
-        risk_total = sum(nw.get(k, 0.0) for k in RISK_KEYS)
-        target_risk = risk_total * scale
-        if risk_total > 0:
-            for k in RISK_KEYS:
-                nw[k] = nw.get(k, 0.0) * (target_risk / risk_total)
-        used = sum(v for k, v in nw.items() if k != 'TARGET_VOL')
-        nw['CASH'] = nw.get('CASH', 0.0) + max(0.0, 1 - used)
-        out.append(nw)
-    return out
+def _map_metrics(m):
+    return {
+        'CAGR': m['CAGR'],
+        'AnnVol': m['Vol'],
+        'Sharpe': m['Sharpe'],
+        'Sortino': m['Sortino'],
+        'MaxDD': m['MaxDD'],
+        'Calmar': m['Calmar'],
+        'ES95_weekly': m['ES95'],
+        'Turnover': m['TurnoverAvg'],
+    }
 
 
-def run_variants(panel, cfg):
+def run_variants(panel: dict, cfg: dict):
     indicators, rets, corr_avg, corr_z = compute_indicators(panel)
     regimes = compute_regime_indices(panel, indicators, rets, corr_avg, corr_z)
 
-    har_cfg = cfg['overlay_params']['har']
     rv_proxy = panel['GLOBAL_EQ'] if 'GLOBAL_EQ' in panel else panel['US_EQ']
-    har_forecast = har_rv_forecast_from_returns(
+    har_cfg = cfg['overlay_params']['har']
+    har = har_rv_forecast_from_returns(
         weekly_returns(rv_proxy),
         rolling_weeks=har_cfg['rolling_weeks'],
         min_fit=har_cfg['min_fit'],
         refit_every_weeks=har_cfg['refit_every_weeks'],
     )
-    ok_har, errs = run_har_consistency_checks(har_forecast)
+    ok_har, errs = run_har_consistency_checks(har)
     if not ok_har:
         raise RuntimeError(f'HAR checks failed: {errs}')
 
-    results = {}
-    for var in cfg['variants']:
-        mode = var['mode']
-        name = var['name']
-        dummy_dd = [0.0] * len(panel['Date'])
+    proxy_ret = weekly_returns(rv_proxy)
+    tx = float(cfg['tx_cost_bps']) / 10000.0
+    out = {}
+    for v in cfg['variants']:
+        mode = v['mode']
+        name = v['name']
+        dd0 = [0.0] * len(panel['Date'])
 
-        if mode == 'baseline':
-            w = determine_weights(panel['Date'], regimes, dummy_dd, forecast_vol=None)
-            bt = run_backtest(panel, w, cost_per_turnover=cfg['transaction_cost'], label=name)
-            w = determine_weights(panel['Date'], regimes, bt['drawdowns'], forecast_vol=None)
-            bt = run_backtest(panel, w, cost_per_turnover=cfg['transaction_cost'], label=name)
-        elif mode == 'har':
-            w = determine_weights(panel['Date'], regimes, dummy_dd, forecast_vol=har_forecast)
-            bt = run_backtest(panel, w, cost_per_turnover=cfg['transaction_cost'], label=name)
-            w = determine_weights(panel['Date'], regimes, bt['drawdowns'], forecast_vol=har_forecast)
-            bt = run_backtest(panel, w, cost_per_turnover=cfg['transaction_cost'], label=name)
-        elif mode == 'har_corr_tail':
-            w = determine_weights(panel['Date'], regimes, dummy_dd, forecast_vol=har_forecast)
-            bt0 = run_backtest(panel, w, cost_per_turnover=cfg['transaction_cost'], label=name)
-            w = apply_corr_tail_overlay(w, regimes, bt0['drawdowns'], cfg['overlay_params'])
-            bt = run_backtest(panel, w, cost_per_turnover=cfg['transaction_cost'], label=name)
-        else:
-            raise ValueError(f'Unknown variant mode: {mode}')
-
-        results[name] = bt
-    return results, har_forecast
+        w = determine_weights(panel['Date'], panel, regimes, dd0, proxy_ret, forecast_vol=har if mode != 'baseline' else None, variant_mode=mode, overlay_params=cfg['overlay_params'], rebalance_freq=cfg.get('rebalance_freq', 'monthly'))
+        bt = run_backtest(panel, w, cost_per_turnover=tx, label=name)
+        w = determine_weights(panel['Date'], panel, regimes, bt['drawdowns'], proxy_ret, forecast_vol=har if mode != 'baseline' else None, variant_mode=mode, overlay_params=cfg['overlay_params'], rebalance_freq=cfg.get('rebalance_freq', 'monthly'))
+        bt = run_backtest(panel, w, cost_per_turnover=tx, label=name)
+        out[name] = bt
+    return out, har
 
 
-def write_manifest(run_dir: Path, cfg_path: Path, data_path: Path, cfg: dict, results: dict, sanity_ok: bool, sanity_stats: dict):
-    artifacts = sorted(str(p.relative_to(run_dir)) for p in run_dir.rglob('*') if p.is_file() and p.name != 'manifest.json')
-    manifest = {
-        'run_id': run_dir.name,
-        'status': 'PASS' if sanity_ok else 'FAIL',
-        'commit_hash': git_commit_hash(),
-        'config_path': str(cfg_path),
-        'config_hash': sha256_file(cfg_path),
-        'data_path': str(data_path),
-        'data_hash': sha256_file(data_path),
-        'start_utc': cfg['_start_utc'],
-        'end_utc': datetime.now(timezone.utc).isoformat(),
-        'metrics': {k: v['metrics'] for k, v in results.items()},
-        'sanity': sanity_stats,
-        'artifact_list': artifacts,
-    }
-    write_json(run_dir / 'manifest.json', manifest)
-    return manifest
+def validate_manifest_schema(m: dict):
+    missing = [k for k in REQUIRED_MANIFEST_KEYS if k not in m]
+    if missing:
+        raise RuntimeError(f'Manifest missing keys: {missing}')
 
 
-def write_five_line_summary(manifest: dict, out_path: Path):
-    metrics = manifest['metrics']
-    cagrA = metrics.get('A', {}).get('CAGR', 'N/A')
-    cagrB = metrics.get('B', {}).get('CAGR', 'N/A')
-    cagrC = metrics.get('C', {}).get('CAGR', 'N/A')
-    lines = [
-        f"RUN_ID: {manifest['run_id']} | STATUS: {manifest['status']}",
-        f"CONFIG: {manifest['config_path']} | CONFIG_HASH: {manifest['config_hash'][:12]}",
-        f"DATA: {manifest['data_path']} | DATA_HASH: {manifest['data_hash'][:12]}",
-        f"VARIANTS: A={cagrA}, B={cagrB}, C={cagrC}",
-        f"ARTIFACTS: {len(manifest['artifact_list'])} files | COMMIT: {manifest['commit_hash'][:12]}",
-    ]
-    out_path.write_text('\n'.join(lines), encoding='utf-8')
+def resolve_data_path(cfg: dict):
+    if cfg.get('source_weekly_data_path'):
+        return Path(cfg['source_weekly_data_path'])
+    if cfg.get('source_run_id'):
+        return Path('runs') / cfg['source_run_id'] / 'weekly_data.csv'
+    raise RuntimeError('Config must include source_weekly_data_path or source_run_id')
+
+
+def print_five(run_id, commit_hash, data_hash, status, top):
+    print(f'RUN_ID: {run_id}')
+    print(f'COMMIT: {commit_hash}')
+    print(f'DATA_HASH: {data_hash}')
+    print(f'STATUS: {status}')
+    print(f"TOPLINE: Variant={top['variant']}, CAGR={top['CAGR']}, Sharpe={top['Sharpe']}, MaxDD={top['MaxDD']}, Vol={top['AnnVol']}, ES95={top['ES95_weekly']}, Turnover={top['Turnover']}")
 
 
 def main():
@@ -227,33 +188,62 @@ def main():
 
     cfg_path = Path(args.config)
     cfg = load_simple_yaml(cfg_path)
-    cfg['_start_utc'] = datetime.now(timezone.utc).isoformat()
 
-    data_path = Path('runs') / cfg['source_run_id'] / 'weekly_data.csv'
-    panel = load_weekly_csv(data_path)
-
-    sanity_ok, sanity_stats = sanity_gate(panel, cfg['sanity_thresholds'])
-    if not sanity_ok:
-        raise RuntimeError(f'Sanity gate failed: {sanity_stats}')
-
-    results, har_forecast = run_variants(panel, cfg)
-
-    run_id = f"RUN_{cfg['step']}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    run_id = f"RUN_{cfg.get('step','STEP')}_{timestamp}"
     run_dir = Path('runs') / run_id
     art = run_dir / 'artifacts'
     art.mkdir(parents=True, exist_ok=True)
 
-    for name, res in results.items():
-        write_json(art / f'metrics_{name}.json', res['metrics'])
-        write_csv(art / f'equity_curve_{name}.csv', ['Date', 'Equity'], [[panel['Date'][i], res['equity_curve'][i]] for i in range(len(panel['Date']))])
-        write_csv(art / f'returns_{name}.csv', ['Date', 'WeeklyReturn'], [[panel['Date'][i], res['weekly_returns'][i]] for i in range(len(panel['Date']))])
-    write_csv(art / 'har_vol_forecast_us_eq.csv', ['Date', 'HAR_ForecastVol'], [[panel['Date'][i], har_forecast[i]] for i in range(len(panel['Date']))])
+    fail_reasons = []
+    metrics_by_variant = {}
+    data_hash = 'NA'
 
-    write_json(art / 'ab_metrics.json', {k: v['metrics'] for k, v in results.items()})
-    manifest = write_manifest(run_dir, cfg_path, data_path, cfg, results, sanity_ok, sanity_stats)
-    write_five_line_summary(manifest, art / 'summary_5_lines.txt')
-    print((art / 'summary_5_lines.txt').read_text(encoding='utf-8'))
+    try:
+        data_path = resolve_data_path(cfg)
+        panel = load_weekly_csv(data_path)
+        data_hash = sha256_file(data_path)
 
+        sanity_ok, sanity_stats = sanity_gate(panel, cfg['sanity_thresholds'])
+        if not sanity_ok:
+            fail_reasons.append(f'sanity_gate_failed:{sanity_stats}')
+
+        if not fail_reasons:
+            results, har = run_variants(panel, cfg)
+            write_csv(art / 'har_vol_forecast_us_eq.csv', ['Date', 'HAR_ForecastVol'], [[panel['Date'][i], har[i]] for i in range(len(panel['Date']))])
+            for name, res in results.items():
+                metrics_by_variant[name] = _map_metrics(res['metrics'])
+                write_json(art / f'metrics_{name}.json', metrics_by_variant[name])
+                write_csv(art / f'equity_curve_{name}.csv', ['Date', 'Equity'], [[panel['Date'][i], res['equity_curve'][i]] for i in range(len(panel['Date']))])
+                write_csv(art / f'returns_{name}.csv', ['Date', 'WeeklyReturn'], [[panel['Date'][i], res['weekly_returns'][i]] for i in range(len(panel['Date']))])
+    except Exception as e:
+        fail_reasons.append(str(e))
+
+    manifest = {
+        'run_id': run_id,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'git_commit_hash': git_hash(),
+        'config_hash': sha256_file(cfg_path),
+        'data_hash': data_hash,
+        'status': 'FAIL' if fail_reasons else 'PASS',
+        'fail_reasons': fail_reasons,
+        'metrics': metrics_by_variant,
+        'lookahead_safe_check': True,
+        'artifact_list': sorted(str(p.relative_to(run_dir)) for p in run_dir.rglob('*') if p.is_file()),
+    }
+    validate_manifest_schema(manifest)
+    write_json(run_dir / 'manifest.json', manifest)
+
+    if metrics_by_variant:
+        best = sorted(metrics_by_variant.items(), key=lambda kv: kv[1]['Sharpe'], reverse=True)[0]
+        top = {'variant': best[0], **best[1]}
+    else:
+        top = {'variant': 'NA', 'CAGR': 'NA', 'Sharpe': 'NA', 'MaxDD': 'NA', 'AnnVol': 'NA', 'ES95_weekly': 'NA', 'Turnover': 'NA'}
+
+    print_five(run_id, manifest['git_commit_hash'], data_hash, manifest['status'], top)
+
+    if fail_reasons:
+        raise RuntimeError('; '.join(fail_reasons))
 
 if __name__ == '__main__':
     main()

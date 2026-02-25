@@ -1,0 +1,30 @@
+step: A3
+source_run_id: RUN_A1_BOOT_20260224_104134
+tx_cost_bps: 10
+rebalance_freq: monthly
+variants:
+  - name: A
+    mode: baseline
+  - name: B
+    mode: har
+  - name: C
+    mode: har_corr_tail
+overlay_params:
+  har:
+    enabled: true
+    rolling_weeks: 260
+    min_fit: 120
+    refit_every_weeks: 4
+    clip_min: 0.50
+    clip_max: 1.25
+  corr_shock:
+    enabled: true
+    corr_z_threshold: 1.5
+    scale: 0.85
+  tail_safety:
+    enabled: true
+    es95_threshold: -0.035
+    scale: 0.80
+sanity_thresholds:
+  us_eq_annualized_vol_min: 0.08
+  us_eq_maxdd_max: -0.15
