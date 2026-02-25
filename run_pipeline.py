@@ -40,7 +40,7 @@ def load_simple_yaml(path: Path) -> dict:
     lines = [ln.rstrip() for ln in path.read_text(encoding='utf-8').splitlines() if ln.strip() and not ln.strip().startswith('#')]
     cfg = {
         'overlay_params': {}, 'sanity_thresholds': {}, 'variants': [],
-        'strategic_weights': {}, 'regime_risk_budget': {}, 'regime_vol_target': {}
+        'strategic_weights': {}, 'regime_risk_budget': {}, 'regime_vol_target': {}, 'momentum_enabled': False
     }
     section = None
     subsection = None
@@ -176,6 +176,7 @@ def run_variants(panel: dict, cfg: dict):
             strategic_weights=cfg.get('strategic_weights'),
             regime_risk_budget=cfg.get('regime_risk_budget'),
             regime_vol_target=cfg.get('regime_vol_target'),
+            momentum_enabled=cfg.get('momentum_enabled', False),
         )
         bt = run_backtest(panel, w, cost_per_turnover=tx, label=name)
         w = determine_weights(
@@ -187,6 +188,7 @@ def run_variants(panel: dict, cfg: dict):
             strategic_weights=cfg.get('strategic_weights'),
             regime_risk_budget=cfg.get('regime_risk_budget'),
             regime_vol_target=cfg.get('regime_vol_target'),
+            momentum_enabled=cfg.get('momentum_enabled', False),
         )
         bt = run_backtest(panel, w, cost_per_turnover=tx, label=name)
         out[name] = bt

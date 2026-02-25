@@ -2,6 +2,7 @@ step: A3.1
 source_weekly_data_path: amac_as_v1_outputs/weekly_data.csv
 tx_cost_bps: 10
 rebalance_freq: monthly
+momentum_enabled: true
 variants:
   - name: A
     mode: baseline

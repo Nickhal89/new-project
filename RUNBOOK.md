@@ -26,3 +26,9 @@
 3. `DATA_HASH: <sha256>`
 4. `STATUS: PASS/FAIL`
 5. `TOPLINE: Variant=<best>, CAGR=..., Sharpe=..., MaxDD=..., Vol=..., ES95=..., Turnover=...`
+
+
+## A3.2 acceptance targets
+- CAGR >= 7%
+- Sharpe >= 0.75
+- MaxDD <= -0.25
