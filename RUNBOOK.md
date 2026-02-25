@@ -7,7 +7,12 @@
 
 ## Steps
 - A2 overlays: `configs/A2_overlays.yaml`
-- A3 multi-asset: `configs/A3_multiactive.yaml`
+- A3.1 Balanced Core (no overlays): `configs/A3_multiactive.yaml`
+
+## A3.1 acceptance targets
+- CAGR >= 6.5%
+- Sharpe >= 0.70
+- MaxDD <= -0.25
 
 ## Hard rules
 - Real data only.

@@ -1,7 +1,6 @@
 import argparse
 import csv
 import hashlib
-import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,7 +38,10 @@ def _coerce(v: str):
 
 def load_simple_yaml(path: Path) -> dict:
     lines = [ln.rstrip() for ln in path.read_text(encoding='utf-8').splitlines() if ln.strip() and not ln.strip().startswith('#')]
-    cfg = {'overlay_params': {}, 'sanity_thresholds': {}, 'variants': []}
+    cfg = {
+        'overlay_params': {}, 'sanity_thresholds': {}, 'variants': [],
+        'strategic_weights': {}, 'regime_risk_budget': {}, 'regime_vol_target': {}
+    }
     section = None
     subsection = None
     current_variant = None
@@ -49,30 +51,37 @@ def load_simple_yaml(path: Path) -> dict:
         if indent == 0 and ': ' in t:
             k, v = t.split(': ', 1)
             cfg[k] = _coerce(v)
-            section = None
+            section, subsection = None, None
             continue
         if indent == 0 and t.endswith(':'):
-            section = t[:-1]
-            subsection = None
+            section, subsection = t[:-1], None
             continue
+
+        if section in ('sanity_thresholds', 'strategic_weights', 'regime_risk_budget', 'regime_vol_target') and ': ' in t:
+            k, v = t.split(': ', 1)
+            cfg[section][k] = _coerce(v)
+            continue
+
         if section == 'overlay_params':
             if indent == 2 and t.endswith(':'):
                 subsection = t[:-1]
-                cfg['overlay_params'][subsection] = {}
+                if subsection not in cfg['overlay_params']:
+                    cfg['overlay_params'][subsection] = {}
+            elif indent == 2 and ': ' in t:
+                k, v = t.split(': ', 1)
+                cfg['overlay_params'][k] = _coerce(v)
             elif indent >= 4 and ': ' in t and subsection:
                 k, v = t.split(': ', 1)
                 cfg['overlay_params'][subsection][k] = _coerce(v)
             continue
-        if section == 'sanity_thresholds' and ': ' in t:
-            k, v = t.split(': ', 1)
-            cfg['sanity_thresholds'][k] = _coerce(v)
-            continue
+
         if section == 'variants':
             if t.startswith('- name: '):
                 current_variant = {'name': t.split(': ', 1)[1]}
                 cfg['variants'].append(current_variant)
             elif t.startswith('mode: ') and current_variant:
                 current_variant['mode'] = t.split(': ', 1)[1]
+            continue
     return cfg
 
 
@@ -131,19 +140,25 @@ def run_variants(panel: dict, cfg: dict):
     indicators, rets, corr_avg, corr_z = compute_indicators(panel)
     regimes = compute_regime_indices(panel, indicators, rets, corr_avg, corr_z)
 
-    rv_proxy = panel['GLOBAL_EQ'] if 'GLOBAL_EQ' in panel else panel['US_EQ']
-    har_cfg = cfg['overlay_params']['har']
-    har = har_rv_forecast_from_returns(
-        weekly_returns(rv_proxy),
-        rolling_weeks=har_cfg['rolling_weeks'],
-        min_fit=har_cfg['min_fit'],
-        refit_every_weeks=har_cfg['refit_every_weeks'],
-    )
-    ok_har, errs = run_har_consistency_checks(har)
-    if not ok_har:
-        raise RuntimeError(f'HAR checks failed: {errs}')
+    overlay = cfg.get('overlay_params', {})
+    har_enabled = bool(overlay.get('har_enabled', overlay.get('har', {}).get('enabled', False)))
+    need_har = har_enabled and any(v.get('mode') in ('har', 'har_corr_tail') for v in cfg['variants'])
 
-    proxy_ret = weekly_returns(rv_proxy)
+    har = None
+    if need_har:
+        rv_proxy = panel['GLOBAL_EQ'] if 'GLOBAL_EQ' in panel else panel['US_EQ']
+        har_cfg = overlay['har']
+        har = har_rv_forecast_from_returns(
+            weekly_returns(rv_proxy),
+            rolling_weeks=har_cfg['rolling_weeks'],
+            min_fit=har_cfg['min_fit'],
+            refit_every_weeks=har_cfg['refit_every_weeks'],
+        )
+        ok_har, errs = run_har_consistency_checks(har)
+        if not ok_har:
+            raise RuntimeError(f'HAR checks failed: {errs}')
+
+    proxy_ret = weekly_returns(panel['GLOBAL_EQ'] if 'GLOBAL_EQ' in panel else panel['US_EQ'])
     tx = float(cfg['tx_cost_bps']) / 10000.0
     out = {}
     for v in cfg['variants']:
@@ -151,9 +166,28 @@ def run_variants(panel: dict, cfg: dict):
         name = v['name']
         dd0 = [0.0] * len(panel['Date'])
 
-        w = determine_weights(panel['Date'], panel, regimes, dd0, proxy_ret, forecast_vol=har if mode != 'baseline' else None, variant_mode=mode, overlay_params=cfg['overlay_params'], rebalance_freq=cfg.get('rebalance_freq', 'monthly'))
+        fvol = har if (har_enabled and mode in ('har', 'har_corr_tail')) else None
+        w = determine_weights(
+            panel['Date'], panel, regimes, dd0, proxy_ret,
+            forecast_vol=fvol,
+            variant_mode=mode,
+            overlay_params=overlay,
+            rebalance_freq=cfg.get('rebalance_freq', 'monthly'),
+            strategic_weights=cfg.get('strategic_weights'),
+            regime_risk_budget=cfg.get('regime_risk_budget'),
+            regime_vol_target=cfg.get('regime_vol_target'),
+        )
         bt = run_backtest(panel, w, cost_per_turnover=tx, label=name)
-        w = determine_weights(panel['Date'], panel, regimes, bt['drawdowns'], proxy_ret, forecast_vol=har if mode != 'baseline' else None, variant_mode=mode, overlay_params=cfg['overlay_params'], rebalance_freq=cfg.get('rebalance_freq', 'monthly'))
+        w = determine_weights(
+            panel['Date'], panel, regimes, bt['drawdowns'], proxy_ret,
+            forecast_vol=fvol,
+            variant_mode=mode,
+            overlay_params=overlay,
+            rebalance_freq=cfg.get('rebalance_freq', 'monthly'),
+            strategic_weights=cfg.get('strategic_weights'),
+            regime_risk_budget=cfg.get('regime_risk_budget'),
+            regime_vol_target=cfg.get('regime_vol_target'),
+        )
         bt = run_backtest(panel, w, cost_per_turnover=tx, label=name)
         out[name] = bt
     return out, har
@@ -210,7 +244,8 @@ def main():
 
         if not fail_reasons:
             results, har = run_variants(panel, cfg)
-            write_csv(art / 'har_vol_forecast_us_eq.csv', ['Date', 'HAR_ForecastVol'], [[panel['Date'][i], har[i]] for i in range(len(panel['Date']))])
+            if har is not None:
+                write_csv(art / 'har_vol_forecast_us_eq.csv', ['Date', 'HAR_ForecastVol'], [[panel['Date'][i], har[i]] for i in range(len(panel['Date']))])
             for name, res in results.items():
                 metrics_by_variant[name] = _map_metrics(res['metrics'])
                 write_json(art / f'metrics_{name}.json', metrics_by_variant[name])
@@ -244,6 +279,7 @@ def main():
 
     if fail_reasons:
         raise RuntimeError('; '.join(fail_reasons))
+
 
 if __name__ == '__main__':
     main()
