@@ -1,0 +1,14 @@
+!git clone https://github.com/<YOUR_ORG>/<YOUR_REPO>.git
+%cd <YOUR_REPO>
+!python -m pip install --upgrade pip
+!python -m pip install pyyaml
+!python run_pipeline.py --config configs/A2.yaml
+import json, glob
+manifest_path = sorted(glob.glob('runs/RUN_*/manifest.json'))[-1]
+manifest = json.load(open(manifest_path))
+metrics = manifest.get('metrics', {})
+print(f"RUN_ID: {manifest['run_id']} | STATUS: {manifest['status']}")
+print(f"CONFIG: {manifest['config_path']} | CONFIG_HASH: {manifest['config_hash'][:12]}")
+print(f"DATA: {manifest['data_path']} | DATA_HASH: {manifest['data_hash'][:12]}")
+print(f"VARIANTS: A={metrics.get('A',{}).get('CAGR','N/A')}, B={metrics.get('B',{}).get('CAGR','N/A')}, C={metrics.get('C',{}).get('CAGR','N/A')}")
+print(f"ARTIFACTS: {len(manifest.get('artifact_list',[]))} files | COMMIT: {manifest['commit_hash'][:12]}")

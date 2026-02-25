@@ -1,0 +1,18 @@
+step: A1
+source_run_id: RUN_A1_BOOT_20260224_104134
+transaction_cost: 0.001
+rebalance_freq: monthly
+overlay_params:
+  har:
+    enabled: true
+    rolling_weeks: 260
+    min_fit: 120
+    refit_every_weeks: 4
+sanity_thresholds:
+  us_eq_annualized_vol_min: 0.08
+  us_eq_maxdd_max: -0.15
+variants:
+  - name: A
+    mode: baseline
+  - name: B
+    mode: har
