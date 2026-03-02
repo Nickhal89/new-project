@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
@@ -12,11 +12,14 @@ type CreateJobResponse = {
   jobId?: string;
   jobToken?: string;
   hrToken?: string;
+  title?: string;
+  createdAt?: string;
   hrLink?: string;
   candidateLink?: string;
 };
 
 export default function AdminJobsPage() {
+  const router = useRouter();
   const params = useSearchParams();
   const tokenFromQuery = useMemo(() => params.get('token')?.trim() ?? '', [params]);
 
@@ -28,6 +31,13 @@ export default function AdminJobsPage() {
   const [status, setStatus] = useState<'idle' | 'running' | 'pass' | 'fail'>('idle');
   const [error, setError] = useState('');
   const [result, setResult] = useState<CreateJobResponse | null>(null);
+
+  useEffect(() => {
+    if (!tokenFromQuery) return;
+
+    setAdminToken(tokenFromQuery);
+    router.replace('/admin/jobs');
+  }, [router, tokenFromQuery]);
 
   async function createJob() {
     if (!adminToken) {
@@ -47,7 +57,7 @@ export default function AdminJobsPage() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/admin/create-job', {
+      const response = await fetch('/api/admin/jobs/create', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -137,9 +147,16 @@ export default function AdminJobsPage() {
       {result?.ok && result.hrLink && result.candidateLink ? (
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold text-slate-900">Generated Links</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Result</h2>
           </CardHeader>
           <CardBody className="space-y-4 text-sm">
+            <div className="rounded-xl border border-slate-200 p-3 text-slate-700">
+              <p><strong>Job Title:</strong> {result.title ?? title}</p>
+              <p><strong>Created:</strong> {result.createdAt ? new Date(result.createdAt).toLocaleString() : '-'}</p>
+              <p><strong>Job ID:</strong> {result.jobId}</p>
+              <p><strong>Job Token:</strong> {result.jobToken}</p>
+            </div>
+
             <div className="rounded-xl border border-slate-200 p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">HR Link</p>
               <p className="mt-1 break-all text-slate-800">{result.hrLink}</p>
@@ -152,9 +169,19 @@ export default function AdminJobsPage() {
               <Button className="mt-2" size="sm" variant="secondary" onClick={() => copyText(result.candidateLink!)}>Copy Candidate Link</Button>
             </div>
 
-            <div className="rounded-xl border border-slate-200 p-3 text-slate-700">
-              <p><strong>Job ID:</strong> {result.jobId}</p>
-              <p><strong>Job Token:</strong> {result.jobToken}</p>
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">HR Token</p>
+              <p className="mt-1 break-all text-slate-800">{result.hrToken}</p>
+              <Button className="mt-2" size="sm" variant="secondary" onClick={() => copyText(result.hrToken ?? '')}>Copy HR Token</Button>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-700">
+              <p className="font-medium">How to use</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>Στείλε το Candidate Link σε υποψηφίους για συμπλήρωση assessment.</li>
+                <li>Άνοιξε το HR Link για live ranking και shortlist.</li>
+                <li>Κράτα το HR Token μόνο για εσωτερική χρήση.</li>
+              </ul>
             </div>
           </CardBody>
         </Card>

@@ -8,6 +8,8 @@ type CreateJobBody = {
   description?: string;
 };
 
+const DEMO_COMPANY_NAME = 'Crossroads Demo Company';
+
 function isAuthorized(request: Request) {
   const expected = String(process.env.ADMIN_TOKEN ?? '').trim();
   if (!expected) return false;
@@ -25,20 +27,41 @@ function randomToken(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${random}`;
 }
 
+function resolveOrigin(request: Request) {
+  const envBase = String(process.env.NEXT_PUBLIC_BASE_URL ?? '').trim();
+  if (envBase) return envBase.replace(/\/$/, '');
+
+  const proto = request.headers.get('x-forwarded-proto') ?? 'https';
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '';
+
+  if (host) return `${proto}://${host}`;
+  return '';
+}
+
 async function getOrCreateCompanyId() {
   const supabase = getSupabaseAdmin();
 
-  const { data: firstCompany } = await supabase
+  const { data: demoCompany, error: demoFindError } = await supabase
+    .from('companies')
+    .select('id,name')
+    .eq('name', DEMO_COMPANY_NAME)
+    .maybeSingle<{ id: string; name: string }>();
+
+  if (demoFindError) throw demoFindError;
+  if (demoCompany?.id) return demoCompany.id;
+
+  const { data: firstCompany, error: firstFindError } = await supabase
     .from('companies')
     .select('id')
     .limit(1)
     .maybeSingle<{ id: string }>();
 
+  if (firstFindError) throw firstFindError;
   if (firstCompany?.id) return firstCompany.id;
 
   const { data: created, error: createError } = await supabase
     .from('companies')
-    .insert({ name: 'Pilot Company' })
+    .insert({ name: DEMO_COMPANY_NAME })
     .select('id')
     .single<{ id: string }>();
 
@@ -107,19 +130,34 @@ export async function POST(request: Request) {
     const { error: tokenError } = await supabase.from('company_access_tokens').insert({
       company_id: companyId,
       token_hash: sha256(hrToken),
-      is_active: true
+      is_active: true,
+      label: `job_${jobId}`
     });
 
-    if (tokenError) throw tokenError;
+    if (tokenError) {
+      const { error: tokenFallbackError } = await supabase.from('company_access_tokens').insert({
+        company_id: companyId,
+        token_hash: sha256(hrToken),
+        is_active: true
+      });
 
-    const hrLink = `/hr/job/${jobId}?token=${encodeURIComponent(hrToken)}`;
-    const candidateLink = `/t2/${jobToken}`;
+      if (tokenFallbackError) throw tokenFallbackError;
+    }
+
+    const origin = resolveOrigin(request);
+    const hrPath = `/hr/job/${jobId}?token=${encodeURIComponent(hrToken)}`;
+    const candidatePath = `/t2/${jobToken}`;
+
+    const hrLink = origin ? `${origin}${hrPath}` : hrPath;
+    const candidateLink = origin ? `${origin}${candidatePath}` : candidatePath;
 
     return NextResponse.json({
       ok: true,
       jobId,
       jobToken,
       hrToken,
+      title,
+      createdAt: new Date().toISOString(),
       hrLink,
       candidateLink
     });
