@@ -23,7 +23,7 @@
   - real-data gate fails before meaningful A3.1 acceptance testing
 
 ### Status of previously logged code defects
-- Resolved on branch head `de94fccb746f07f7eeeb38910fbc7fbdaa6b78ed`:
+- Resolved on remote branch head after the blocked local session:
   - `project/run_ab.py` wrong `determine_weights` call shape
   - `project/src/allocation_engine.py` alias-only weight keys causing phantom allocations
   - `run_pipeline.py` missing chained-run `weekly_data.csv` persistence
@@ -31,7 +31,10 @@
   - `project/src/regime_engine.py` repeated HY z-score recomputation
   - `project/src/backtest.py` Sharpe annualization mismatch
   - `project/src/risk_engine/__init__.py` hard-coded sanity threshold control
+  - `run_pipeline.py` incompatibility with bundled `transaction_cost` configs
+  - `configs/A2.yaml` overlay-key mismatch versus allocator schema
 
 ### Remaining blocker to solve next
 - Revalidate the patched branch in a working local/runtime environment with real data access.
 - If package or data fetches still fail, solve the local proxy/network path before interpreting any A3.1 metrics.
+- Once local access is restored, compare the actual local repo state against the remote branch before overwriting anything.

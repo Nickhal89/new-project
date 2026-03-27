@@ -14,8 +14,10 @@
 - Fixed `run_pipeline.py` to persist `weekly_data.csv` into each run directory and to apply sanity thresholds from config stats rather than hard-coded gate booleans.
 - Fixed `project/src/backtest.py` Sharpe annualization to align with annualized volatility.
 - Relaxed `project/src/risk_engine/__init__.py` sanity helper so config-level thresholding remains the source of truth.
+- Added config-runner compatibility for legacy `transaction_cost` configs so bundled A1/A2 files no longer abort on `KeyError: 'tx_cost_bps'`.
+- Corrected `configs/A2.yaml` overlay field names to match the allocator schema used by `har_corr_tail` runs.
 
 ## Stable checkpoint
-- Current branch checkpoint: `de94fccb746f07f7eeeb38910fbc7fbdaa6b78ed`.
+- Best available canonical checkpoint is the remote PR #2 branch head because the current local session still cannot inspect the local repo.
 - Quant scaffold exists and the highest-signal review defects have been patched in code.
 - Remaining blockers are environment validation and real-data execution, not the previously logged code defects.

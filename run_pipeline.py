@@ -140,6 +140,14 @@ def _map_metrics(m):
     }
 
 
+def resolve_tx_cost(cfg: dict) -> float:
+    if 'tx_cost_bps' in cfg:
+        return float(cfg['tx_cost_bps']) / 10000.0
+    if 'transaction_cost' in cfg:
+        return float(cfg['transaction_cost'])
+    raise KeyError('Config must define tx_cost_bps or transaction_cost')
+
+
 def run_variants(panel: dict, cfg: dict):
     indicators, rets, corr_avg, corr_z = compute_indicators(panel)
     regimes = compute_regime_indices(panel, indicators, rets, corr_avg, corr_z)
@@ -163,7 +171,7 @@ def run_variants(panel: dict, cfg: dict):
             raise RuntimeError(f'HAR checks failed: {errs}')
 
     proxy_ret = weekly_returns(panel['GLOBAL_EQ'] if 'GLOBAL_EQ' in panel else panel['US_EQ'])
-    tx = float(cfg['tx_cost_bps']) / 10000.0
+    tx = resolve_tx_cost(cfg)
     out = {}
     for v in cfg['variants']:
         mode = v['mode']

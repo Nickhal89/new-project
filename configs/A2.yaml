@@ -10,11 +10,11 @@ overlay_params:
     refit_every_weeks: 4
   corr_shock:
     enabled: true
-    threshold: 0.7
+    corr_z_threshold: 0.7
     scale: 0.85
-  tail_risk:
+  tail_safety:
     enabled: true
-    dd_threshold: -0.15
+    es95_threshold: -0.15
     scale: 0.8
 sanity_thresholds:
   us_eq_annualized_vol_min: 0.08

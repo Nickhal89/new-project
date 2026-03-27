@@ -5,20 +5,23 @@
 - Repository: `Nickhal89/new-project`
 - Active branch: `codex/build-quantitative-research-environment`
 - Reference PR: #2
-- Last stable commit: `de94fccb746f07f7eeeb38910fbc7fbdaa6b78ed`
+- Last stable commit: `9c3fb0206fbf4ecdb3c6bd9268b75f6da9ed2af0`
 - Active profile: build_mode
 
 ## Current status
 - The branch contains the main scaffold for the quant pipeline and associated configs.
 - The previously documented P0/P1/P2 code defects from PR review have been patched on the active branch.
+- Additional execution-path defects in `run_pipeline.py` config compatibility and `configs/A2.yaml` overlay schema have now also been patched on the branch after `9c3fb020`.
 - The current state is still not ready for acceptance because real-data execution has not yet been revalidated in a working runtime environment.
 - `RUNBOOK.md` still requires real data only for acceptance.
 
 ## Next exact action
-1. Re-run the pipeline in an environment with working Python package access and outbound market-data access.
-2. Validate `configs/A3_multiactive.yaml` against the acceptance targets in `RUNBOOK.md` using real data.
-3. If the environment still fails on package or market-data access, inspect local proxy/VPN/firewall settings first because historic logs show repeated `403 Forbidden` tunnel failures.
-4. If A3.1 misses targets after a clean real-data run, iterate on config and regime/allocation logic only after the run artifacts are real-data clean.
+1. Restore a working local shell/runtime and inspect the actual local git branch, status, recent commits, and any non-pushed local changes before syncing anything.
+2. Compare local repo contents and desktop handoff files against the remote branch state and preserve any newer local-only information.
+3. Re-run the pipeline in an environment with working Python package access and outbound market-data access.
+4. Validate `configs/A3_multiactive.yaml` against the acceptance targets in `RUNBOOK.md` using real data.
+5. If the environment still fails on package or market-data access, inspect local proxy/VPN/firewall settings first because historic logs show repeated `403 Forbidden` tunnel failures.
+6. If A3.1 misses targets after a clean real-data run, iterate on config and regime/allocation logic only after the run artifacts are real-data clean.
 
 ## Code fixes already landed on current branch
 - corrected `determine_weights` call shape in `project/run_ab.py`
@@ -27,6 +30,8 @@
 - hardened `project/src/regime_engine.py` against missing `US_EQ` values and removed repeated HY z-score recomputation
 - corrected Sharpe annualization in `project/src/backtest.py`
 - removed hard-coded threshold control from the reusable sanity helper in `project/src/risk_engine/__init__.py`
+- accepted bundled `transaction_cost` configs in `run_pipeline.py` as a tx-cost alias for `tx_cost_bps`
+- aligned `configs/A2.yaml` overlay keys with the allocator schema used by `har_corr_tail`
 
 ## Assumptions to verify when local access is restored
 - Confirm this repo is the same project referenced by the desktop handoff files.
@@ -36,4 +41,4 @@
 ## Validation status
 - Local validation from the current session: not possible
 - Reason: shell execution failure `CreateProcessWithLogonW failed: 1326`
-- Last known runnable checkpoint from this session: code patched, but runtime not executed
+- Last known runnable checkpoint from this session: remote code patched, but runtime not executed
