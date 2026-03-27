@@ -17,7 +17,9 @@
 - Added config-runner compatibility for legacy `transaction_cost` configs so bundled A1/A2 files no longer abort on `KeyError: 'tx_cost_bps'`.
 - Corrected `configs/A2.yaml` overlay field names to match the allocator schema used by `har_corr_tail` runs.
 - Added regression coverage for the `transaction_cost` alias path and for the corrected A2 overlay schema.
-- Advanced the canonical remote checkpoint to `dc0b9d1d72f1ab44915c993fc7fbdd2d5ede25f6`.
+- Hardened `project/src/backtest.py` so alias-named sleeves (`BONDS`, `HY`, `COMMS`) are recognized alongside legacy names (`AGG_BOND`, `HY_PROXY`, `COMMOD`).
+- Added regression coverage for alias-named backtest assets to prevent phantom zero-return sleeves from reappearing through alternate data column naming.
+- Advanced the canonical remote checkpoint to `fe9a0979439848372f7aaa8f27b9ea08e09ac63c` before this pass.
 
 ## Stable checkpoint
 - Best available canonical checkpoint is the remote PR #2 branch head because the current local session still cannot inspect the local repo.

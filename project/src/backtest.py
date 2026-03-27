@@ -1,5 +1,20 @@
 from statistics import mean
 
+ASSET_ALIASES = {
+    'BONDS': ('BONDS', 'AGG_BOND'),
+    'HY': ('HY', 'HY_PROXY'),
+    'COMMS': ('COMMS', 'COMMOD'),
+    'US_EQ': ('US_EQ',),
+    'EU_EQ': ('EU_EQ',),
+    'JP_EQ': ('JP_EQ',),
+    'EM_EQ': ('EM_EQ',),
+    'CN_EQ': ('CN_EQ',),
+    'REIT': ('REIT',),
+    'BTC': ('BTC',),
+    'GOLD': ('GOLD',),
+    'DXY': ('DXY',),
+}
+
 
 def _ret(panel, asset, i):
     s = panel.get(asset)
@@ -20,6 +35,16 @@ def _mdd(curve):
     return m, dds
 
 
+def _portfolio_return(panel, weights, i):
+    total = 0.0
+    for canonical, aliases in ASSET_ALIASES.items():
+        weight = next((weights.get(alias, 0.0) for alias in aliases if alias in weights), 0.0)
+        asset = next((alias for alias in aliases if alias in panel), None)
+        if weight and asset:
+            total += weight * _ret(panel, asset, i)
+    return total
+
+
 def run_backtest(panel, weights, cost_per_turnover=0.001, label='A'):
     n = len(panel['Date'])
     curve = [1.0]
@@ -27,10 +52,9 @@ def run_backtest(panel, weights, cost_per_turnover=0.001, label='A'):
     turnover = [0.0]
     prev = {}
 
-    assets = ['US_EQ', 'EU_EQ', 'JP_EQ', 'EM_EQ', 'CN_EQ', 'REIT', 'COMMOD', 'HY_PROXY', 'BTC', 'AGG_BOND', 'GOLD', 'DXY']
     for i in range(1, n):
         w = weights[i - 1] if i - 1 < len(weights) else {}
-        gross = sum(w.get(a, 0.0) * _ret(panel, a, i) for a in assets)
+        gross = _portfolio_return(panel, w, i)
         t = 0.5 * sum(abs(w.get(k, 0.0) - prev.get(k, 0.0)) for k in set(w) | set(prev) if k != 'TARGET_VOL')
         net = gross - t * cost_per_turnover
         curve.append(curve[-1] * (1 + net))

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from project.src.backtest import run_backtest
 from run_pipeline import REQUIRED_MANIFEST_KEYS, load_simple_yaml, resolve_tx_cost, sanity_gate
 
 
@@ -38,6 +39,17 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn('threshold', overlay['corr_shock'])
         self.assertIn('tail_safety', overlay)
         self.assertNotIn('tail_risk', overlay)
+
+    def test_backtest_accepts_alias_named_assets(self):
+        panel = {
+            'Date': ['2020-01-03', '2020-01-10'],
+            'BONDS': [100.0, 110.0],
+            'HY': [100.0, 105.0],
+            'COMMS': [100.0, 120.0],
+        }
+        weights = [{'BONDS': 0.5, 'HY': 0.25, 'COMMS': 0.25, 'CASH': 0.0}, {'CASH': 1.0}]
+        result = run_backtest(panel, weights, cost_per_turnover=0.0)
+        self.assertGreater(result['weekly_returns'][1], 0.0)
 
     def test_run_pipeline_produces_manifest(self):
         repo = Path(__file__).resolve().parents[1]

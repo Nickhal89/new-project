@@ -5,14 +5,14 @@
 - Repository: `Nickhal89/new-project`
 - Active branch: `codex/build-quantitative-research-environment`
 - Reference PR: #2
-- Last stable commit: `dc0b9d1d72f1ab44915c993fc7fbdd2d5ede25f6`
+- Last stable commit: `fe9a0979439848372f7aaa8f27b9ea08e09ac63c`
 - Active profile: build_mode
 
 ## Current status
 - The branch contains the main scaffold for the quant pipeline and associated configs.
 - The previously documented P0/P1/P2 code defects from PR review have been patched on the active branch.
-- Additional execution-path defects in `run_pipeline.py` config compatibility and `configs/A2.yaml` overlay schema have also been patched after `9c3fb020`.
-- Regression coverage now exists for the `transaction_cost` alias path and the corrected A2 overlay schema.
+- Additional execution-path defects in `run_pipeline.py` config compatibility, `configs/A2.yaml` overlay schema, and alias-named backtest sleeves have also been patched after `9c3fb020`.
+- Regression coverage now exists for the `transaction_cost` alias path, the corrected A2 overlay schema, and alias-named backtest assets.
 - The current state is still not ready for acceptance because real-data execution has not yet been revalidated in a working runtime environment.
 - `RUNBOOK.md` still requires real data only for acceptance.
 
@@ -33,7 +33,8 @@
 - removed hard-coded threshold control from the reusable sanity helper in `project/src/risk_engine/__init__.py`
 - accepted bundled `transaction_cost` configs in `run_pipeline.py` as a tx-cost alias for `tx_cost_bps`
 - aligned `configs/A2.yaml` overlay keys with the allocator schema used by `har_corr_tail`
-- added regression tests for both of the above compatibility fixes
+- taught `project/src/backtest.py` to recognize both legacy and alias sleeve names for bonds, HY, and commodities
+- added regression tests for all of the above compatibility fixes
 
 ## Assumptions to verify when local access is restored
 - Confirm this repo is the same project referenced by the desktop handoff files.
