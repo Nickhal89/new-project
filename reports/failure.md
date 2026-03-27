@@ -22,11 +22,16 @@
   - Yahoo/Stooq/FRED data fetches fail
   - real-data gate fails before meaningful A3.1 acceptance testing
 
-### Code-level issues already flagged on PR #2
-- P0: `project/run_ab.py` calls `determine_weights` with the wrong argument list, which can abort every A/B run before backtest execution.
-- P1: `project/src/allocation_engine.py` renames weight keys in ways that do not match backtest asset keys, causing phantom allocations.
-- P1: `run_pipeline.py` expects chained-run `weekly_data.csv` artifacts in `runs/<id>/`, but the pipeline does not persist them there.
-- P1: `project/src/regime_engine.py` can crash on missing `US_EQ` values in the VOI extension term.
-- P2: `project/src/backtest.py` reports Sharpe inconsistently versus annualized volatility.
-- P2: `project/src/regime_engine.py` recomputes HY z-scores inside the main loop, creating avoidable runtime cost.
-- P2: `project/src/risk_engine/__init__.py` hard-codes sanity thresholds that can override config intent.
+### Status of previously logged code defects
+- Resolved on branch head `de94fccb746f07f7eeeb38910fbc7fbdaa6b78ed`:
+  - `project/run_ab.py` wrong `determine_weights` call shape
+  - `project/src/allocation_engine.py` alias-only weight keys causing phantom allocations
+  - `run_pipeline.py` missing chained-run `weekly_data.csv` persistence
+  - `project/src/regime_engine.py` missing-value crash risk in VOI term
+  - `project/src/regime_engine.py` repeated HY z-score recomputation
+  - `project/src/backtest.py` Sharpe annualization mismatch
+  - `project/src/risk_engine/__init__.py` hard-coded sanity threshold control
+
+### Remaining blocker to solve next
+- Revalidate the patched branch in a working local/runtime environment with real data access.
+- If package or data fetches still fail, solve the local proxy/network path before interpreting any A3.1 metrics.
