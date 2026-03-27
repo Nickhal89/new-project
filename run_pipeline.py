@@ -1,6 +1,7 @@
 import argparse
 import csv
 import hashlib
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -118,8 +119,11 @@ def load_weekly_csv(path: Path) -> dict:
 def sanity_gate(panel: dict, thresholds: dict):
     if 'US_EQ' not in panel:
         return False, {'reason': 'US_EQ missing'}
-    ok, stats = compute_us_eq_sanity(panel['US_EQ'])
-    passed = ok and stats['annualized_vol'] > thresholds['us_eq_annualized_vol_min'] and stats['max_drawdown'] < thresholds['us_eq_maxdd_max']
+    _, stats = compute_us_eq_sanity(panel['US_EQ'])
+    passed = (
+        stats['annualized_vol'] > thresholds['us_eq_annualized_vol_min']
+        and stats['max_drawdown'] < thresholds['us_eq_maxdd_max']
+    )
     return passed, stats
 
 
@@ -239,6 +243,7 @@ def main():
         data_path = resolve_data_path(cfg)
         panel = load_weekly_csv(data_path)
         data_hash = sha256_file(data_path)
+        shutil.copyfile(data_path, run_dir / 'weekly_data.csv')
 
         sanity_ok, sanity_stats = sanity_gate(panel, cfg['sanity_thresholds'])
         if not sanity_ok:

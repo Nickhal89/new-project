@@ -62,9 +62,9 @@ def _zscore_cross_section(values: dict):
     return {k: (v - mu) / sd for k, v in values.items()}
 
 
-def _momentum_scores(universe, canon_to_series, sig_idx):
-    r6 = {u: _ret_at(canon_to_series[u], sig_idx, 26) for u in universe}
-    r12 = {u: _ret_at(canon_to_series[u], sig_idx, 52) for u in universe}
+def _momentum_scores(universe, asset_to_series, sig_idx):
+    r6 = {u: _ret_at(asset_to_series[u], sig_idx, 26) for u in universe}
+    r12 = {u: _ret_at(asset_to_series[u], sig_idx, 52) for u in universe}
     z6 = _zscore_cross_section(r6)
     z12 = _zscore_cross_section(r12)
     return {u: 0.5 * z6[u] + 0.5 * z12[u] for u in universe}
@@ -92,15 +92,16 @@ def determine_weights(
 
     available = [k for k in panel.keys() if k != 'Date']
     universe = []
-    canon_to_col = {}
-    for k in available:
-        u = ALIASES.get(k, k)
-        if u in strategic and u not in universe:
-            universe.append(u)
-            canon_to_col[u] = k
-    canon_to_series = {u: panel[canon_to_col[u]] for u in universe}
+    asset_to_series = {}
+    strategic_key_by_asset = {}
+    for asset in available:
+        strategic_key = ALIASES.get(asset, asset)
+        if strategic_key in strategic and asset not in universe:
+            universe.append(asset)
+            asset_to_series[asset] = panel[asset]
+            strategic_key_by_asset[asset] = strategic_key
 
-    base = _norm({u: strategic[u] for u in universe})
+    base = _norm({asset: strategic[strategic_key_by_asset[asset]] for asset in universe})
 
     weights = []
     cur = {'CASH': 1.0}
@@ -122,7 +123,7 @@ def determine_weights(
         target_vol = zone_vol.get(zone, 0.14)
 
         if variant_mode in ('har', 'har_corr_tail') and har_enabled and forecast_vol is not None:
-            f = forecast_vol[i - 1] if i > 0 else None  # lookahead-safe
+            f = forecast_vol[i - 1] if i > 0 else None
             clip_min = overlay_params.get('har', {}).get('clip_min', 0.50)
             clip_max = overlay_params.get('har', {}).get('clip_max', 1.25)
             scale = overlay_scale(target_vol, f)
@@ -146,28 +147,27 @@ def determine_weights(
             risk_budget *= 0.85
 
         risk_budget = max(0.15, min(1.0, risk_budget))
-        risk_w = {u: base.get(u, 0.0) * risk_budget for u in universe}
+        risk_w = {asset: base.get(asset, 0.0) * risk_budget for asset in universe}
 
-        # A3.2: regime + momentum rotation, using t-1 signal for week t
         if momentum_enabled and i > 0 and zone in ('Strong Expansion', 'Expansion', 'Neutral') and len(universe) >= 4:
             strength = 1.0 if zone in ('Strong Expansion', 'Expansion') else 0.5
-            scores = _momentum_scores(universe, canon_to_series, i - 1)
-            rank = sorted(universe, key=lambda u: scores[u], reverse=True)
+            scores = _momentum_scores(universe, asset_to_series, i - 1)
+            rank = sorted(universe, key=lambda asset: scores[asset], reverse=True)
             k = min(3, len(universe) // 2)
             top = rank[:k]
             bottom = rank[-k:]
             transfer = 0.18 * risk_budget * strength
             add = transfer / max(1, len(top))
             sub = transfer / max(1, len(bottom))
-            for u in top:
-                risk_w[u] += add
-            for u in bottom:
-                risk_w[u] = max(0.0, risk_w[u] - sub)
+            for asset in top:
+                risk_w[asset] += add
+            for asset in bottom:
+                risk_w[asset] = max(0.0, risk_w[asset] - sub)
             risk_w = _norm(risk_w)
-            risk_w = {u: risk_w[u] * risk_budget for u in risk_w}
+            risk_w = {asset: risk_w[asset] * risk_budget for asset in risk_w}
 
-        for u in list(risk_w):
-            risk_w[u] = min(MAX_SINGLE_ASSET, risk_w[u])
+        for asset in list(risk_w):
+            risk_w[asset] = min(MAX_SINGLE_ASSET, risk_w[asset])
 
         used = sum(risk_w.values())
         cur = dict(risk_w)

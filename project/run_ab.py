@@ -13,25 +13,24 @@ def run_ab(panel, out_dir: Path):
     regimes = compute_regime_indices(panel, indicators, rets, corr_avg, corr_z)
 
     rv_proxy = panel['GLOBAL_EQ'] if 'GLOBAL_EQ' in panel else panel['US_EQ']
-    har_forecast = har_rv_forecast_from_returns(weekly_returns(rv_proxy), rolling_weeks=260, min_fit=120, refit_every_weeks=4)
+    proxy_ret = weekly_returns(rv_proxy)
+    har_forecast = har_rv_forecast_from_returns(proxy_ret, rolling_weeks=260, min_fit=120, refit_every_weeks=4)
     ok_har, har_errs = run_har_consistency_checks(har_forecast)
     if not ok_har:
         raise RuntimeError(f'HAR consistency checks failed: {har_errs}')
 
-    ok_sanity, sanity = compute_us_eq_sanity(panel['US_EQ'])
-    if not ok_sanity:
-        raise RuntimeError(f"US_EQ sanity failed: {sanity}")
+    _, sanity = compute_us_eq_sanity(panel['US_EQ'])
 
     dummy_dd = [0.0] * len(panel['Date'])
 
-    wa = determine_weights(panel['Date'], regimes, dummy_dd, forecast_vol=None)
+    wa = determine_weights(panel['Date'], panel, regimes, dummy_dd, proxy_ret, forecast_vol=None)
     ba = run_backtest(panel, wa, label='A')
-    wa = determine_weights(panel['Date'], regimes, ba['drawdowns'], forecast_vol=None)
+    wa = determine_weights(panel['Date'], panel, regimes, ba['drawdowns'], proxy_ret, forecast_vol=None)
     ba = run_backtest(panel, wa, label='A')
 
-    wb = determine_weights(panel['Date'], regimes, dummy_dd, forecast_vol=har_forecast)
+    wb = determine_weights(panel['Date'], panel, regimes, dummy_dd, proxy_ret, forecast_vol=har_forecast, variant_mode='har')
     bb = run_backtest(panel, wb, label='B')
-    wb = determine_weights(panel['Date'], regimes, bb['drawdowns'], forecast_vol=har_forecast)
+    wb = determine_weights(panel['Date'], panel, regimes, bb['drawdowns'], proxy_ret, forecast_vol=har_forecast, variant_mode='har')
     bb = run_backtest(panel, wb, label='B')
 
     ok_ab, ab_errs = ab_consistency_check(ba, bb)

@@ -38,12 +38,13 @@ def run_backtest(panel, weights, cost_per_turnover=0.001, label='A'):
         turnover.append(t)
         prev = w
 
+    avg_weekly = mean(weekly)
     cagr = curve[-1] ** (52 / max(1, n - 1)) - 1
-    vol = (sum((x - mean(weekly)) ** 2 for x in weekly) / max(1, len(weekly) - 1)) ** 0.5 * (52 ** 0.5)
-    sharpe = mean(weekly) / (vol / (52 ** 0.5)) if vol > 0 else 0.0
+    vol = (sum((x - avg_weekly) ** 2 for x in weekly) / max(1, len(weekly) - 1)) ** 0.5 * (52 ** 0.5)
+    sharpe = (avg_weekly * 52) / vol if vol > 0 else 0.0
     downside = [min(0.0, x) for x in weekly]
     dvol = (sum((x - mean(downside)) ** 2 for x in downside) / max(1, len(downside) - 1)) ** 0.5 * (52 ** 0.5)
-    sortino = (mean(weekly) * 52) / dvol if dvol > 0 else 0.0
+    sortino = (avg_weekly * 52) / dvol if dvol > 0 else 0.0
     maxdd, dds = _mdd(curve)
     calmar = cagr / abs(maxdd) if maxdd < 0 else 0.0
     es95 = mean(sorted(weekly)[:max(1, int(0.05 * len(weekly)))])

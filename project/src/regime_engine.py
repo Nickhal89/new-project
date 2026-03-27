@@ -1,5 +1,3 @@
-from typing import Dict, List
-
 from .indicators import logistic_map_to_0_100, zscore_hybrid
 
 
@@ -12,6 +10,7 @@ def compute_regime_indices(panel, ind, rets, corr_avg, corr_z):
     voi = []
 
     hy = 'HY_PROXY'
+    hy_z = zscore_hybrid(panel[hy]) if hy in panel and all(x is not None for x in panel[hy]) else None
     for i in range(n):
         eqs = [x for x in ['US_EQ', 'EU_EQ', 'JP_EQ', 'EM_EQ', 'CN_EQ'] if x in ind]
         ma_sig = sum(1 if ind[e]['ma_10w'][i] > ind[e]['ma_40w'][i] else -1 for e in eqs) / max(1, len(eqs))
@@ -25,9 +24,9 @@ def compute_regime_indices(panel, ind, rets, corr_avg, corr_z):
         x_vsi = -18 * usv - 25 * max(0, vexp) - 1.5 * max(0, corr_avg[i])
         vsi.append(logistic_map_to_0_100(x_vsi))
 
-        if hy in ind:
+        if hy in ind and hy_z is not None:
             hy_m = ind[hy]['ret_13w'][i]
-            hy_lv = zscore_hybrid(panel[hy])[i] if all(x is not None for x in panel[hy][:i+1]) else 0.0
+            hy_lv = hy_z[i]
             x_cri = -3.5 * hy_lv + 8 * hy_m
         else:
             x_cri = -2.0
@@ -38,7 +37,9 @@ def compute_regime_indices(panel, ind, rets, corr_avg, corr_z):
         x_lmi = -3 * dxy_m - 0.8 * dxy_ma
         lmi.append(logistic_map_to_0_100(x_lmi))
 
-        ext = (panel['US_EQ'][i] / ind['US_EQ']['ma_40w'][i] - 1) if 'US_EQ' in ind and ind['US_EQ']['ma_40w'][i] else 0.0
+        us_eq_price = panel['US_EQ'][i] if 'US_EQ' in panel and i < len(panel['US_EQ']) else None
+        us_eq_ma40 = ind['US_EQ']['ma_40w'][i] if 'US_EQ' in ind else None
+        ext = (us_eq_price / us_eq_ma40 - 1) if us_eq_price not in (None, 0) and us_eq_ma40 not in (None, 0) else 0.0
         accel = ind['US_EQ']['ret_4w'][i] - ind['US_EQ']['ret_13w'][i] if 'US_EQ' in ind else 0.0
         x_voi = -5 * ext - 4 * accel
         voi.append(logistic_map_to_0_100(x_voi))

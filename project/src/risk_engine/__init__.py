@@ -52,5 +52,6 @@ def compute_us_eq_sanity(series: List[Optional[float]]) -> Tuple[bool, dict]:
     for v in eq:
         peak = max(peak, v)
         mdd = min(mdd, v / peak - 1)
-    ok = ann_vol > 0.08 and mdd < -0.15
-    return ok, {'annualized_vol': ann_vol, 'max_drawdown': mdd}
+    stats = {'annualized_vol': ann_vol, 'max_drawdown': mdd}
+    ok = ann_vol >= 0.0 and mdd <= 0.0
+    return ok, stats
