@@ -16,6 +16,7 @@
 - Relaxed `project/src/risk_engine/__init__.py` sanity helper so config-level thresholding remains the source of truth.
 - Added config-runner compatibility for legacy `transaction_cost` configs so bundled A1/A2 files no longer abort on `KeyError: 'tx_cost_bps'`.
 - Corrected `configs/A2.yaml` overlay field names to match the allocator schema used by `har_corr_tail` runs.
+- Added regression coverage for the `transaction_cost` alias path and for the corrected A2 overlay schema.
 
 ## Stable checkpoint
 - Best available canonical checkpoint is the remote PR #2 branch head because the current local session still cannot inspect the local repo.

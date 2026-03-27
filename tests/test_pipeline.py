@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run_pipeline import REQUIRED_MANIFEST_KEYS, sanity_gate
+from run_pipeline import REQUIRED_MANIFEST_KEYS, load_simple_yaml, resolve_tx_cost, sanity_gate
 
 
 class PipelineTests(unittest.TestCase):
@@ -26,6 +26,19 @@ class PipelineTests(unittest.TestCase):
         self.assertGreater(stats['annualized_vol'], 0.08)
         self.assertLess(stats['max_drawdown'], -0.15)
 
+    def test_resolve_tx_cost_accepts_transaction_cost_alias(self):
+        self.assertAlmostEqual(resolve_tx_cost({'tx_cost_bps': 10}), 0.001)
+        self.assertAlmostEqual(resolve_tx_cost({'transaction_cost': 0.001}), 0.001)
+
+    def test_a2_config_uses_allocator_overlay_schema(self):
+        repo = Path(__file__).resolve().parents[1]
+        cfg = load_simple_yaml(repo / 'configs' / 'A2.yaml')
+        overlay = cfg['overlay_params']
+        self.assertIn('corr_z_threshold', overlay['corr_shock'])
+        self.assertNotIn('threshold', overlay['corr_shock'])
+        self.assertIn('tail_safety', overlay)
+        self.assertNotIn('tail_risk', overlay)
+
     def test_run_pipeline_produces_manifest(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as td:
@@ -38,7 +51,7 @@ class PipelineTests(unittest.TestCase):
                 '\n'.join([
                     'step: T1',
                     f'source_weekly_data_path: {csv_path}',
-                    'tx_cost_bps: 10',
+                    'transaction_cost: 0.001',
                     'rebalance_freq: monthly',
                     'variants:',
                     '  - name: A',
